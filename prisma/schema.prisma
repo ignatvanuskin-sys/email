@@ -1,0 +1,283 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String     @id @default(cuid())
+  email              String     @unique
+  passwordHash       String
+  name               String?
+  businessDescription String    @default("")
+  timezone           String     @default("UTC")
+  outreachPaused     Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  leads        Lead[]
+  sessions     Session[]
+  providers    Provider[]
+  suppressions Suppression[]
+  activities   Activity[]
+  templates    EmailTemplate[]
+  campaigns    Campaign[]
+  sequences    Sequence[]
+  segments     Segment[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Lead {
+  id                   String   @id @default(cuid())
+  userId               String
+  name                 String
+  companyOrChannel     String   @default("")
+  email                String?
+  websiteUrl           String?
+  youtubeUrl           String?
+  instagramUrl         String?
+  telegramUrl          String?
+  niche                String?
+  followersCount       Int?
+  contentActivity      Int      @default(0)
+  longFormCount        Int      @default(0)
+  shortFormCount       Int      @default(0)
+  growthSignal         Int      @default(0)
+  commercialPotential  Int      @default(0)
+  leadScore            Int      @default(0)
+  scoreBreakdown       String   @default("{}")
+  insight              String?
+  status               String   @default("New")
+  lastContactAt        DateTime?
+  nextFollowUpAt       DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails     EmailMessage[]
+  followUps  FollowUp[]
+  replies    Reply[]
+  activities Activity[]
+  campaigns  CampaignLead[]
+
+  @@unique([userId, email])
+  @@index([userId, status])
+}
+
+model Provider {
+  id              String   @id @default(cuid())
+  userId          String
+  kind            String
+  configEncrypted String
+  isActive        Boolean  @default(true)
+  dailyLimit      Int      @default(25)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, isActive])
+}
+
+model EmailMessage {
+  id                  String    @id @default(cuid())
+  userId              String
+  leadId              String
+  campaignId          String?
+  sequenceStepId      String?
+  variantId           String?
+  subject             String
+  body                String
+  status              String    @default("Draft")
+  approvalHash        String?
+  approvalExpiresAt   DateTime?
+  providerMessageId   String?
+  errorMessage        String?
+  sentAt              DateTime?
+  createdAt           DateTime  @default(now())
+
+  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  replies Reply[]
+
+  @@index([userId, status])
+  @@index([campaignId])
+  @@index([sequenceStepId])
+}
+
+model FollowUp {
+  id        String   @id @default(cuid())
+  userId    String
+  leadId    String
+  dueDate   DateTime
+  status    String   @default("Pending")
+  note      String   @default("")
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dueDate, status])
+}
+
+model Reply {
+  id              String   @id @default(cuid())
+  userId          String
+  leadId          String
+  emailMessageId  String?
+  classification  String
+  contentSnippet  String
+  receivedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+}
+
+model Suppression {
+  id        String   @id @default(cuid())
+  userId    String
+  email     String
+  reason    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  userId    String
+  leadId    String?
+  campaignId String?
+  type      String
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  category  String   @default("Custom")
+  subject   String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, category])
+}
+
+model Campaign {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String    @default("")
+  status      String    @default("Draft")
+  dailyLimit  Int       @default(25)
+  templateId  String?
+  sequenceId  String?
+  segmentId   String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads       CampaignLead[]
+  variants    CampaignVariant[]
+
+  @@index([userId, status])
+}
+
+model CampaignLead {
+  id         String   @id @default(cuid())
+  campaignId String
+  leadId     String
+  status     String   @default("Pending")
+  sentAt     DateTime?
+  repliedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, leadId])
+  @@index([campaignId])
+}
+
+model Sequence {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps     SequenceStep[]
+
+  @@index([userId])
+}
+
+model SequenceStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  position   Int
+  delayDays  Int      @default(3)
+  templateId String?
+  subject    String   @default("")
+  body       String   @default("")
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  sequence    Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+
+  @@index([sequenceId, position])
+}
+
+model Segment {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String   @default("")
+  filters     String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CampaignVariant {
+  id         String   @id @default(cuid())
+  campaignId String
+  name       String   @default("Variant A")
+  subject    String
+  body       String
+  weight     Int      @default(50)
+  sent       Int      @default(0)
+  replies    Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}

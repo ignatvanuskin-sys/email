@@ -1,0 +1,11 @@
+.scroll-reveal {
+  margin: 0;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+.scroll-reveal-text {
+  margin: 0;
+  line-height: inherit;
+  color: inherit;
+  font: inherit;
+}

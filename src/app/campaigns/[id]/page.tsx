@@ -1,0 +1,373 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { api } from "@/lib/client";
+import { useToast } from "@/components/Toast";
+import { formatDate } from "@/lib/utils";
+import BlurText from "@/components/react-bits/BlurText";
+import ShinyText from "@/components/react-bits/ShinyText";
+import SpotlightCard from "@/components/react-bits/SpotlightCard";
+import FadeContent from "@/components/react-bits/FadeContent";
+import { PageTransition } from "@/components/PageTransition";
+
+type Campaign = {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  dailyLimit: number;
+  createdAt: string;
+};
+
+type CampaignLead = {
+  id: string;
+  status: string;
+  sentAt: string | null;
+  lead: { id: string; name: string; email: string | null };
+};
+
+type CampaignVariant = {
+  id: string;
+  name: string;
+  subject: string;
+  sent: number;
+  replies: number;
+};
+
+type Data = {
+  campaign: Campaign;
+  leads: CampaignLead[];
+  variants: CampaignVariant[];
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  Draft: "gray",
+  Running: "green",
+  Paused: "warm",
+  Completed: "blue",
+  Stopped: "red",
+};
+
+const LEAD_STATUS_STYLES: Record<string, string> = {
+  Pending: "gray",
+  Sent: "green",
+  Skipped: "warm",
+  Bounced: "red",
+  Replied: "blue",
+  Unsubscribed: "red",
+};
+
+export default function CampaignDetailPage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const { notify } = useToast();
+  const id = params.id;
+  const [data, setData] = useState<Data | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [descDraft, setDescDraft] = useState("");
+  const [variantOpen, setVariantOpen] = useState(false);
+  const [variantForm, setVariantForm] = useState({ name: "Variant B", subject: "", body: "" });
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<Data>(`/api/campaigns/${id}`);
+      setData(d);
+      setNameDraft(d.campaign.name);
+      setDescDraft(d.campaign.description);
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const act = async (action: string) => {
+    setBusy(action);
+    try {
+      await api(`/api/campaigns/${id}/${action}`, { method: "POST" });
+      notify(`Campaign ${action}ed`, "success");
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Action failed", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const patch = async (body: Record<string, unknown>) => {
+    try {
+      await api(`/api/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+      notify("Updated", "success");
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Update failed", "error");
+    }
+  };
+
+  const saveName = () => {
+    if (nameDraft.trim() && nameDraft !== data?.campaign.name) {
+      patch({ name: nameDraft });
+    }
+    setEditingName(false);
+  };
+
+  const saveDesc = () => {
+    if (descDraft !== data?.campaign.description) {
+      patch({ description: descDraft });
+    }
+    setEditingDesc(false);
+  };
+
+  const saveVariant = async () => {
+    try {
+      await api(`/api/campaigns/${id}/variants`, {
+        method: "POST",
+        body: JSON.stringify(variantForm),
+      });
+      notify("Variant added", "success");
+      setVariantOpen(false);
+      setVariantForm({ name: "Variant B", subject: "", body: "" });
+      await load();
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Failed to add variant", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <div className="page-head"><div><h1 className="page-title">Campaign</h1></div></div>
+        <div className="card" style={{ padding: 24 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skeleton" style={{ height: 40, marginBottom: 10 }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="page-head"><div><h1 className="page-title">Campaign</h1></div></div>
+        <div className="card" style={{ padding: 12, color: "var(--red)" }}>{error}</div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const { campaign, leads, variants } = data;
+  const stats = {
+    total: leads.length,
+    sent: leads.filter((l) => l.status === "Sent").length,
+    replied: leads.filter((l) => l.status === "Replied").length,
+    bounced: leads.filter((l) => l.status === "Bounced").length,
+    unsubscribed: leads.filter((l) => l.status === "Unsubscribed").length,
+  };
+
+  return (
+    <PageTransition>
+      <div>
+        <div className="page-head">
+          <div>
+            <div className="row">
+              {editingName ? (
+                <input
+                  className="input"
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={saveName}
+                  onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  autoFocus
+                  style={{ fontSize: 22, fontWeight: 650, maxWidth: 400 }}
+                />
+              ) : (
+                <div style={{ cursor: "pointer" }} onClick={() => setEditingName(true)}>
+                  <BlurText
+                    text={campaign.name}
+                    className="page-title"
+                    delay={30}
+                    animateBy="words"
+                  />
+                </div>
+              )}
+              <span className={`badge ${STATUS_STYLES[campaign.status] || "gray"}`}>{campaign.status}</span>
+            </div>
+            {editingDesc ? (
+              <textarea
+                className="input"
+                value={descDraft}
+                onChange={(e) => setDescDraft(e.target.value)}
+                onBlur={saveDesc}
+                autoFocus
+                rows={2}
+                style={{ maxWidth: 400, marginTop: 4 }}
+              />
+            ) : (
+              <p className="page-sub" style={{ cursor: "pointer" }} onClick={() => setEditingDesc(true)}>
+                <ShinyText text={campaign.description || "No description — click to add"} speed={3} />
+              </p>
+            )}
+          </div>
+          <Link href="/campaigns" className="btn">Back</Link>
+        </div>
+
+        <FadeContent>
+          <SpotlightCard>
+            <div className="card" style={{ padding: 20 }}>
+              <div className="row" style={{ gap: 32, flexWrap: "wrap" }}>
+                <StatBox label="Total leads" value={stats.total} />
+                <StatBox label="Sent" value={stats.sent} />
+                <StatBox label="Replied" value={stats.replied} />
+                <StatBox label="Bounced" value={stats.bounced} />
+                <StatBox label="Unsubscribed" value={stats.unsubscribed} />
+              </div>
+              <div className="divider" />
+              <div className="row" style={{ gap: 8, fontSize: 14, color: "var(--muted)" }}>
+                <span>Daily limit: {campaign.dailyLimit}</span>
+                <span aria-hidden>|</span>
+                <span>Created: {formatDate(campaign.createdAt)}</span>
+              </div>
+            </div>
+          </SpotlightCard>
+        </FadeContent>
+
+        <div className="row" style={{ gap: 8, margin: "16px 0" }}>
+          {campaign.status === "Draft" && (
+            <button className="btn btn-primary" onClick={() => act("start")} disabled={!!busy}>
+              {busy === "start" ? <><span className="spinner" /> Starting...</> : "Start"}
+            </button>
+          )}
+          {campaign.status === "Running" && (
+            <>
+              <button className="btn" onClick={() => act("pause")} disabled={!!busy}>
+                {busy === "pause" ? <><span className="spinner" /> Pausing...</> : "Pause"}
+              </button>
+              <button className="btn btn-outline-danger" onClick={() => act("stop")} disabled={!!busy}>
+                {busy === "stop" ? <><span className="spinner" /> Stopping...</> : "Stop"}
+              </button>
+              <button className="btn" onClick={() => act("send")} disabled={!!busy} style={{ marginLeft: "auto" }}>
+                {busy === "send" ? <><span className="spinner" /> Sending...</> : "Send batch"}
+              </button>
+            </>
+          )}
+          {campaign.status === "Paused" && (
+            <>
+              <button className="btn btn-primary" onClick={() => act("start")} disabled={!!busy}>
+                {busy === "start" ? <><span className="spinner" /> Resuming...</> : "Resume"}
+              </button>
+              <button className="btn btn-outline-danger" onClick={() => act("stop")} disabled={!!busy}>
+                {busy === "stop" ? <><span className="spinner" /> Stopping...</> : "Stop"}
+              </button>
+            </>
+          )}
+        </div>
+
+        {variants.length > 0 && (
+          <FadeContent>
+            <section style={{ marginBottom: 20 }}>
+              <div className="row" style={{ marginBottom: 8 }}>
+                <div className="section-label" style={{ marginBottom: 0 }}>A/B Variants</div>
+                <span className="grow" />
+                <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>+ Add variant</button>
+              </div>
+              <div className="card" style={{ padding: 0 }}>
+                {variants.map((v) => (
+                  <div key={v.id} className="row" style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
+                    <div className="grow">
+                      <div style={{ fontWeight: 600 }}>{v.name}</div>
+                      <div className="small muted">{v.subject}</div>
+                    </div>
+                    <span className="small muted">{v.sent} sent</span>
+                    <span className="small muted" style={{ marginLeft: 12 }}>{v.replies} replies</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </FadeContent>
+        )}
+
+        {variantOpen && (
+          <div className="modal-overlay" onClick={() => setVariantOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="section-label" style={{ marginBottom: 12 }}>Add A/B variant</div>
+              <div className="field">
+                <label>Variant name</label>
+                <input className="input" value={variantForm.name} onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })} placeholder="Variant B" />
+              </div>
+              <div className="field">
+                <label>Subject</label>
+                <input className="input" value={variantForm.subject} onChange={(e) => setVariantForm({ ...variantForm, subject: e.target.value })} placeholder="Different subject line" />
+              </div>
+              <div className="field">
+                <label>Body</label>
+                <textarea className="input" rows={6} value={variantForm.body} onChange={(e) => setVariantForm({ ...variantForm, body: e.target.value })} placeholder="Different email body" />
+              </div>
+              <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => setVariantOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" disabled={!variantForm.subject.trim() || !variantForm.body.trim()} onClick={saveVariant}>Save variant</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <FadeContent>
+          <section>
+            <div className="section-label">Leads</div>
+            <div className="card" style={{ padding: 0, overflowX: "auto" }}>
+              {leads.length === 0 ? (
+                <div className="empty-state" style={{ padding: 24 }}>
+                  <div className="es-title">No leads yet</div>
+                  <div className="es-sub">Leads will appear here once the campaign starts.</div>
+                </div>
+              ) : (
+                <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                      <th style={{ padding: "10px 16px" }}>Name</th>
+                      <th style={{ padding: "10px 16px" }}>Email</th>
+                      <th style={{ padding: "10px 16px" }}>Status</th>
+                      <th style={{ padding: "10px 16px" }}>Sent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map((cl) => (
+                      <tr key={cl.id} style={{ borderBottom: "1px solid var(--border)", cursor: "pointer" }} onClick={() => router.push(`/leads/${cl.lead.id}`)}>
+                        <td style={{ padding: "10px 16px", fontWeight: 550 }}>{cl.lead.name}</td>
+                        <td style={{ padding: "10px 16px" }}>{cl.lead.email || "—"}</td>
+                        <td style={{ padding: "10px 16px" }}>
+                          <span className={`badge ${LEAD_STATUS_STYLES[cl.status] || "gray"}`}>{cl.status}</span>
+                        </td>
+                        <td style={{ padding: "10px 16px" }} className="small muted">{cl.sentAt ? formatDate(cl.sentAt) : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
+        </FadeContent>
+      </div>
+    </PageTransition>
+  );
+}
+
+function StatBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="grow" style={{ textAlign: "center" }}>
+      <div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div>
+      <div className="small muted">{label}</div>
+    </div>
+  );
+}
