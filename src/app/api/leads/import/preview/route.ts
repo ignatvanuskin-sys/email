@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       const extension = file.name.toLowerCase().split(".").pop();
       if (!extension || !["csv", "xlsx"].includes(extension)) return badRequest("Only CSV and XLSX files are supported");
       const bytes = Buffer.from(await file.arrayBuffer());
-      records = extension === "xlsx" ? parseXlsx(bytes) : parseCsv(bytes.toString("utf8"));
+      records = extension === "xlsx" ? await parseXlsx(bytes) : parseCsv(bytes.toString("utf8"));
     }
 
     if (!records.length) return badRequest("The source contains no data rows");

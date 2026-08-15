@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, notFound, ok, readJson, unauthorized, badRequest } from "@/lib/api";
+import { validateCampaignReferences } from "@/lib/ownership";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -40,6 +41,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
     const body = await readJson(req);
     const d = updateSchema.parse(body);
+    await validateCampaignReferences(user.id, d);
     const campaign = await prisma.campaign.update({ where: { id }, data: d });
     return ok({ campaign });
   } catch (err) {

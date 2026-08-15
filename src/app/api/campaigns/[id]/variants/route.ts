@@ -9,12 +9,16 @@ const variantSchema = z.object({
   weight: z.number().int().min(0).max(100).optional().default(50),
 });
 
+async function ownedCampaign(id: string, userId: string) {
+  return prisma.campaign.findFirst({ where: { id, userId }, select: { id: true, status: true } });
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
     const { id } = await params;
-    const campaign = await prisma.campaign.findFirst({ where: { id, userId: user.id } });
+    const campaign = await ownedCampaign(id, user.id);
     if (!campaign) return notFound("Campaign not found");
     if (campaign.status !== "Draft") return badRequest("Variants can only be added to draft campaigns");
 
@@ -34,9 +38,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const user = await getApiUser();
     if (!user) return unauthorized();
     const { id } = await params;
-    const campaign = await prisma.campaign.findFirst({ where: { id, userId: user.id } });
-    if (!campaign) return notFound("Campaign not found");
-    const variants = await prisma.campaignVariant.findMany({ where: { campaignId: id } });
+    if (!await ownedCampaign(id, user.id)) return notFound("Campaign not found");
+    const variants = await prisma.campaignVariant.findMany({ where: { campaignId: id }, orderBy: { createdAt: "asc" } });
     return ok({ variants });
   } catch (err) {
     return handleError(err);
@@ -48,12 +51,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const user = await getApiUser();
     if (!user) return unauthorized();
     const { id } = await params;
-    const campaign = await prisma.campaign.findFirst({ where: { id, userId: user.id } });
-    if (!campaign) return notFound("Campaign not found");
-    const url = new URL(req.url);
-    const variantId = url.searchParams.get("variantId");
+    if (!await ownedCampaign(id, user.id)) return notFound("Campaign not found");
+    const variantId = new URL(req.url).searchParams.get("variantId");
     if (!variantId) return badRequest("variantId is required");
-    await prisma.campaignVariant.delete({ where: { id: variantId } });
+
+    const variant = await prisma.campaignVariant.findFirst({ where: { id: variantId, campaignId: id, campaign: { userId: user.id } } });
+    if (!variant) return notFound("Variant not found");
+    await prisma.campaignVariant.delete({ where: { id: variant.id } });
     return ok({ deleted: true });
   } catch (err) {
     return handleError(err);

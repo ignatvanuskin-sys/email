@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import {
   parseCsv,
   parseXlsx,
@@ -43,25 +43,25 @@ describe("CSV parsing", () => {
 });
 
 describe("XLSX parsing", () => {
-  it("parses the first worksheet into rows", () => {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet([
-      { email: "a@x.com", name: "A", company: "Acme" },
-      { email: "b@x.com", name: "B", company: "Beta" },
-    ]);
-    XLSX.utils.book_append_sheet(wb, ws, "Leads");
-    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-    const rows = parseXlsx(buffer);
+  it("parses the first worksheet into rows", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Leads");
+    ws.addRow(["email", "name", "company"]);
+    ws.addRow(["a@x.com", "A", "Acme"]);
+    ws.addRow(["b@x.com", "B", "Beta"]);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    const rows = await parseXlsx(buffer);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ email: "a@x.com", name: "A", company: "Acme" });
   });
 
-  it("parses and trims header keys", () => {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet([{ "Full Name": "Alice", "Email Address": "a@x.com" }]);
-    XLSX.utils.book_append_sheet(wb, ws, "S");
-    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-    const rows = parseXlsx(buffer);
+  it("parses and trims header keys", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("S");
+    ws.addRow([" Full Name ", "Email Address"]);
+    ws.addRow(["Alice", "a@x.com"]);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+    const rows = await parseXlsx(buffer);
     expect(rows[0]["Full Name"]).toBe("Alice");
   });
 });

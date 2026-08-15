@@ -1,5 +1,5 @@
 import { parse } from "csv-parse/sync";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 5_000;
@@ -48,13 +48,34 @@ function detectDelimiter(text: string): "," | ";" {
   return semicolons > commas ? ";" : ",";
 }
 
-export function parseXlsx(buffer: Buffer): ImportRow[] {
+export async function parseXlsx(buffer: Buffer): Promise<ImportRow[]> {
   if (buffer.byteLength > MAX_IMPORT_BYTES) throw new Error("File exceeds the 5 MB import limit");
-  const workbook = XLSX.read(buffer, { type: "buffer", cellFormula: false, cellHTML: false, cellText: true, dense: true });
-  const first = workbook.SheetNames[0];
-  if (!first) throw new Error("Workbook has no sheets");
-  const records = XLSX.utils.sheet_to_json(workbook.Sheets[first], { defval: "", raw: false }) as unknown[];
+  const workbook = new ExcelJS.Workbook();
+  const compatibleBuffer = buffer as unknown as Parameters<typeof workbook.xlsx.load>[0];
+  await workbook.xlsx.load(compatibleBuffer);
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) throw new Error("Workbook has no sheets");
+  if (worksheet.rowCount > MAX_IMPORT_ROWS + 1) throw new Error(`Import is limited to ${MAX_IMPORT_ROWS} rows`);
+
+  const headerValues = worksheet.getRow(1).values as unknown[];
+  const headers = headerValues.slice(1).map((value) => sanitizeCell(value));
+  const records: ImportRow[] = [];
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    const record: ImportRow = {};
+    headers.forEach((header, index) => {
+      if (header) record[header] = sanitizeCell(excelCellValue(row.getCell(index + 1).value));
+    });
+    if (Object.values(record).some(Boolean)) records.push(record);
+  }
   return normalizeRows(records);
+}
+
+function excelCellValue(value: unknown): unknown {
+  if (value && typeof value === "object" && "formula" in value) {
+    return `=${String((value as { formula: unknown }).formula)}`;
+  }
+  return value;
 }
 
 function normalizeRows(records: unknown[]): ImportRow[] {

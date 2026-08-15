@@ -3,8 +3,11 @@ import { getApiUser, handleError, notFound, ok, readJson, unauthorized } from "@
 import { emailGenerateSchema } from "@/lib/validation";
 import { generateEmail, getActiveAiClient } from "@/lib/ai";
 import { applyTemplate } from "@/lib/emailSender";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "ai-generate", 20, 60 * 1000);
+  if (limited) return limited;
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();

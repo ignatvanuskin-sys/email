@@ -10,7 +10,7 @@ const PUBLIC_PATHS = new Set([
 // Lightweight page protection: full sessions are validated by each API route.
 // Redirects anonymous visitors away from the app pages and signed-in users away
 // from /login and /register.
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const hasSession = Boolean(req.cookies.get(COOKIE));
 

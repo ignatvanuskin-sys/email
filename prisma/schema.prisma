@@ -15,7 +15,8 @@ model User {
   businessDescription String    @default("")
   timezone           String     @default("UTC")
   outreachPaused     Boolean    @default(false)
-  createdAt          DateTime   @default(now())
+  sendLockUntil      DateTime?
+  createdAt           DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
   leads        Lead[]

@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { spawn, execFile } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
@@ -25,8 +25,8 @@ function spawnPortable(command, args, options = {}) {
   return spawn(command, args, options);
 }
 
-function exec(command, args) {
-  return new Promise((resolve, reject) => execFile(command, args, { windowsHide: true }, (error, stdout) => error ? reject(error) : resolve(stdout)));
+function exec(command, args, options = {}) {
+  return new Promise((resolve, reject) => execFile(command, args, { windowsHide: true, ...options }, (error, stdout, stderr) => error ? reject(new Error(`${error.message}\n${stderr || ''}`)) : resolve(stdout)));
 }
 
 async function processOnPort() {
@@ -75,9 +75,24 @@ async function stopTree(pid) {
 (async () => {
   await freeOwnedPort();
   const baseUrl = `http://127.0.0.1:${port}`;
+  const dbPath = path.join(root, `.verify-${process.pid}.db`);
+  try { fs.rmSync(dbPath, { force: true }); } catch {}
+  const verifyEnv = {
+    ...process.env,
+    PORT: String(port),
+    DATABASE_URL: `file:${dbPath}`,
+    SESSION_SECRET: process.env.SESSION_SECRET || 'verify-session-secret-change-me-32-characters',
+    CREDENTIALS_KEY: process.env.CREDENTIALS_KEY || 'MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=',
+    BOUNCE_WEBHOOK_SECRET: process.env.BOUNCE_WEBHOOK_SECRET || 'verify-bounce-secret-change-me-32-characters',
+    UNSUBSCRIBE_SECRET: process.env.UNSUBSCRIBE_SECRET || 'verify-unsubscribe-secret-change-me-32-characters',
+    APP_URL: `https://127.0.0.1:${port}`,
+    MOCK_AI: 'true',
+    MOCK_EMAIL: 'true',
+  };
+  await exec(npm, ['exec', '--', 'prisma', 'db', 'push', '--skip-generate'], { cwd: root, env: verifyEnv });
   const server = spawnPortable(npm, ['run', mode === 'production' ? 'start' : 'dev', '--', '-p', String(port)], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), MOCK_AI: 'true', MOCK_EMAIL: 'true' },
+    env: verifyEnv,
     shell: false,
     windowsHide: true,
     detached: process.platform !== 'win32',
@@ -87,7 +102,7 @@ async function stopTree(pid) {
     await waitForHealth(baseUrl);
     const smoke = spawnPortable(process.execPath, ['scripts/mvp-smoke.mjs'], {
       cwd: root,
-      env: { ...process.env, BASE_URL: baseUrl, APP_URL: baseUrl, MOCK_AI: 'true', MOCK_EMAIL: 'true' },
+      env: { ...verifyEnv, BASE_URL: baseUrl, MOCK_AI: 'true', MOCK_EMAIL: 'true' },
       shell: false,
       windowsHide: true,
       stdio: 'inherit',
@@ -96,5 +111,6 @@ async function stopTree(pid) {
     if (code !== 0) throw new Error(`Smoke failed with exit code ${code}`);
   } finally {
     await stopTree(server.pid);
+    try { fs.rmSync(dbPath, { force: true }); } catch {}
   }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

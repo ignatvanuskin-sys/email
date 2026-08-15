@@ -74,7 +74,7 @@ async function chatAnthropic(client: AiClient, system: string, user: string): Pr
       messages: [{ role: "user", content: user }],
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Anthropic provider request failed (${res.status})`);
   const data = (await res.json()) as { content: Array<{ text: string }> };
   return data.content.map((c) => c.text).join("");
 }
@@ -92,7 +92,7 @@ async function chatOpenAI(client: AiClient, system: string, user: string): Promi
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI error ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`OpenAI provider request failed (${res.status})`);
   const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
   return data.choices[0]?.message.content ?? "";
 }

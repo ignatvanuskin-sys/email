@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import type { User } from "@prisma/client";
 import { getCurrentUser } from "./auth";
+import { PublicError } from "./errors";
 
-/** Returns the current user or null in an API context. */
 export async function getApiUser(): Promise<User | null> {
   return getCurrentUser();
 }
@@ -30,15 +30,17 @@ export function ok(data: unknown, status = 200): NextResponse {
 
 export function handleError(err: unknown): NextResponse {
   if (err instanceof ZodError) {
-    return badRequest(err.issues.map((i) => i.message).join("; "));
+    return badRequest(err.issues.map((issue) => issue.message).join("; "));
   }
-  if (err instanceof Error && err.message) {
-    return badRequest(err.message);
+  if (err instanceof PublicError) {
+    return NextResponse.json({ error: err.message }, { status: err.status });
   }
+  // Keep upstream/provider/DB details server-side. The caller receives a stable
+  // response while operators can inspect the structured server log.
+  console.error("[api-error]", err);
   return serverError();
 }
 
-/** Read and JSON-parse a request body safely. */
 export async function readJson(req: Request): Promise<unknown> {
   try {
     return await req.json();
