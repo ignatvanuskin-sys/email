@@ -10,3 +10,8 @@ test-results
 *.err.log
 tsconfig.tsbuildinfo
 server.log
+.final-verification
+.pi-subagents
+.postman
+postman
+scripts/final-recovery-verify.cjs
