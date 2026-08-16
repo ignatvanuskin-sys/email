@@ -2,8 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { getApiUser, badRequest, ok, readJson, unauthorized } from "@/lib/api";
 import { decryptCredentials } from "@/lib/crypto";
 import { chatOpenRouter, OpenRouterError } from "@/lib/openrouter";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "provider-test", 10, 10 * 60 * 1000);
+  if (limited) return limited;
   const user = await getApiUser();
   if (!user) return unauthorized();
   const body = await readJson(req) as { platform?: string; apiKey?: string; model?: string };

@@ -3,8 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth";
 import { registerSchema } from "@/lib/validation";
 import { handleError, readJson } from "@/lib/api";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "auth-register", 5, 60 * 60 * 1000);
+  if (limited) return limited;
   try {
     const body = await readJson(req);
     const parsed = registerSchema.parse(body);

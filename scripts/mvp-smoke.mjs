@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 const base = process.env.BASE_URL || 'http://localhost:3100';
 const run = randomUUID().slice(0, 8);
@@ -11,6 +11,20 @@ const users = {
 const jars = { A: '', B: '', anon: '' };
 const results = [];
 const ids = { A: {}, B: {} };
+
+function signedWebhookHeaders(body) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = createHmac('sha256', process.env.BOUNCE_WEBHOOK_SECRET || 'local-bounce-webhook-secret-change-me')
+    .update(`${timestamp}.${JSON.stringify(body)}`)
+    .digest('base64url');
+  return { 'x-clipreach-timestamp': timestamp, 'x-clipreach-signature': signature };
+}
+
+function signedUnsubscribeToken(userId, leadId, email) {
+  const payload = Buffer.from(JSON.stringify({ userId, leadId, email, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
+  const signature = createHmac('sha256', process.env.UNSUBSCRIBE_SECRET || 'local-unsubscribe-secret-change-me').update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
 
 function record(label, method, path, status, assertion) {
   results.push({ label, method, path, status, assertion });
@@ -85,7 +99,7 @@ async function main() {
   await request('A', 'POST', '/api/auth/login', { email: users.A.email, password }, 200, 'valid login restored session');
   await request('A', 'GET', '/api/auth/me', undefined, 200, 'login session persists across request');
   const dashboard = await request('A', 'GET', '/api/dashboard', undefined, 200, 'authenticated dashboard contract is available');
-  assert.deepEqual(Object.keys(dashboard.data).sort(), ['counters', 'dueFollowUps', 'hotLeads', 'recentReplies'].sort());
+  assert.deepEqual(Object.keys(dashboard.data).sort(), ['counters', 'analytics', 'hotLeads', 'dueFollowUps', 'recentReplies', 'activities'].sort());
   assert.deepEqual(Object.keys(dashboard.data.counters).sort(), [
     'totalLeads', 'newLeads', 'qualified', 'contacted', 'interested', 'clients',
     'emailsSent', 'replies', 'replyRate', 'pendingFollowUps',
@@ -94,16 +108,53 @@ async function main() {
   assert.ok(Array.isArray(dashboard.data.dueFollowUps));
   assert.ok(Array.isArray(dashboard.data.recentReplies));
 
-  ids.A.primaryLead = await createLead('A', 'primary', `lead-a-primary-${run}@example.test`);
-  ids.B.primaryLead = await createLead('B', 'primary', `lead-b-primary-${run}@example.test`);
+  ids.A.primaryEmail = `lead-a-primary-${run}@example.test`;
+  ids.B.primaryEmail = `lead-b-primary-${run}@example.test`;
+  ids.A.primaryLead = await createLead('A', 'primary', ids.A.primaryEmail);
+  ids.B.primaryLead = await createLead('B', 'primary', ids.B.primaryEmail);
+
+  await request('anon', 'GET', `/api/unsubscribe?email=${encodeURIComponent(ids.A.primaryEmail)}`, undefined, 400, 'raw-email unsubscribe token rejected');
+  const unchangedSuppression = await request('A', 'GET', '/api/suppressions', undefined, 200, 'raw-email unsubscribe does not mutate state');
+  assert.ok(!unchangedSuppression.data.entries.some((entry) => entry.email === ids.A.primaryEmail));
+  await request('anon', 'POST', '/api/bounces', { emailMessageId: 'forged-message-id', event: 'bounce' }, 401, 'unsigned bounce webhook rejected');
+
+  ids.A.unsubscribeEmail = `unsubscribe-${run}@example.test`;
+  ids.A.unsubscribeLead = await createLead('A', 'unsubscribe', ids.A.unsubscribeEmail);
+  const unsubscribeToken = signedUnsubscribeToken(ids.A.user, ids.A.unsubscribeLead, ids.A.unsubscribeEmail);
+  await request('anon', 'GET', `/api/unsubscribe?token=${encodeURIComponent(unsubscribeToken)}`, undefined, 200, 'valid scoped unsubscribe token accepted');
+  const scopedSuppression = await request('A', 'GET', '/api/suppressions', undefined, 200, 'scoped unsubscribe creates owner suppression');
+  assert.ok(scopedSuppression.data.entries.some((entry) => entry.email === ids.A.unsubscribeEmail));
+
+  const sequenceA = await request('A', 'POST', '/api/sequences', { name: `Sequence A ${run}` }, 201, 'sequence A created');
+  const sequenceB = await request('B', 'POST', '/api/sequences', { name: `Sequence B ${run}` }, 201, 'sequence B created');
+  ids.A.sequence = sequenceA.data.sequence.id;
+  ids.B.sequence = sequenceB.data.sequence.id;
+  const stepB = await request('B', 'POST', `/api/sequences/${ids.B.sequence}/steps`, { subject: 'B subject', body: 'B body' }, 201, 'sequence B step created');
+  ids.B.step = stepB.data.step.id;
+  await request('A', 'DELETE', `/api/sequences/${ids.A.sequence}/steps?stepId=${ids.B.step}`, undefined, 404, 'cross-user sequence-step delete denied');
+  const stepsBAfterIdor = await request('B', 'GET', `/api/sequences/${ids.B.sequence}/steps`, undefined, 200, 'foreign sequence step remains intact');
+  assert.ok(stepsBAfterIdor.data.steps.some((step) => step.id === ids.B.step));
+
+  const campaignA = await request('A', 'POST', '/api/campaigns', { name: `Campaign A ${run}` }, 201, 'campaign A created');
+  const campaignB = await request('B', 'POST', '/api/campaigns', { name: `Campaign B ${run}` }, 201, 'campaign B created');
+  ids.A.campaign = campaignA.data.campaign.id;
+  ids.B.campaign = campaignB.data.campaign.id;
+  const variantB = await request('B', 'POST', `/api/campaigns/${ids.B.campaign}/variants`, { subject: 'B subject', body: 'B body' }, 201, 'campaign B variant created');
+  ids.B.variant = variantB.data.variant.id;
+  await request('A', 'DELETE', `/api/campaigns/${ids.A.campaign}/variants?variantId=${ids.B.variant}`, undefined, 404, 'cross-user campaign variant delete denied');
+  const variantsBAfterIdor = await request('B', 'GET', `/api/campaigns/${ids.B.campaign}/variants`, undefined, 200, 'foreign campaign variant remains intact');
+  assert.ok(variantsBAfterIdor.data.variants.some((variant) => variant.id === ids.B.variant));
 
   const csv = `name,email,companyOrChannel,followersCount\nCSV Valid ${run},csv-valid-${run}@example.test,CSV Channel,25000\nCSV Duplicate ${run},lead-a-primary-${run}@example.test,Dup Channel,100\n=FORMULA,csv-formula-${run}@example.test,Bad Channel,100`;
-  const preview = await request('A', 'POST', '/api/leads/import/preview', { csv }, 200, 'CSV preview validates valid, duplicate, and formula rows');
-  assert.equal(preview.data.total, 3);
-  assert.equal(preview.data.preview.filter(x => x.isValid).length, 1);
-  const commit = await request('A', 'POST', '/api/leads/import/commit', { csv, mappings: preview.data.mapping }, 200, 'CSV commit reports imported and invalid counts');
+  const importForm = new FormData();
+  importForm.append('file', new Blob([csv], { type: 'text/csv' }), `leads-${run}.csv`);
+  const preview = await request('A', 'POST', '/api/leads/import/preview', importForm, 200, 'CSV preview validates valid, duplicate, and formula rows');
+  assert.equal(preview.data.counts.total, 3);
+  assert.equal(preview.data.rows.filter(x => x.isValid).length, 1);
+  const commit = await request('A', 'POST', '/api/leads/import/commit', { records: preview.data.records, mappings: preview.data.mapping }, 200, 'CSV commit reports imported and invalid counts');
   assert.equal(commit.data.imported, 1);
-  assert.equal(commit.data.invalid, 2);
+  assert.equal(commit.data.invalid, 1);
+  assert.equal(commit.data.duplicates, 1);
 
   const template = await request('A', 'POST', '/api/templates', {
     name: `Template ${run}`, category: 'Smoke', subject: 'Hello {{firstName}}', body: 'Hi {{name}} from {{companyOrChannel}}',
@@ -115,6 +166,26 @@ async function main() {
   ids.A.provider = provider.data.provider.id;
   const providers = await request('A', 'GET', '/api/settings/providers', undefined, 200, 'provider list omits credentials');
   assert.ok(!JSON.stringify(providers.data).includes('configEncrypted'));
+  const emailProvider = await request('A', 'POST', '/api/settings/providers', {
+    type: 'email', platform: 'SMTP', displayName: `Smoke SMTP ${run}`,
+    config: JSON.stringify({ host: 'smtp.invalid', port: 587, user: 'smoke', pass: 'smoke', from: 'smoke@example.test' }), dailyLimit: 5,
+  }, 201, 'email provider resource created');
+  ids.A.emailProvider = emailProvider.data.provider.id;
+  ids.A.segmentTarget = await createLead('A', 'segment-target', `segment-target-${run}@example.test`);
+  await request('A', 'PATCH', `/api/leads/${ids.A.segmentTarget}`, { status: 'Analyzed' }, 200, 'segment target status set');
+  ids.A.segmentOther = await createLead('A', 'segment-other', `segment-other-${run}@example.test`);
+  const targetDetails = await request('A', 'GET', `/api/leads/${ids.A.segmentTarget}`, undefined, 200, 'segment target retains email and status');
+  const analyzedLeads = await request('A', 'GET', '/api/leads?status=Analyzed', undefined, 200, 'analyzed lead collection is available');
+  const segment = await request('A', 'POST', '/api/segments', {
+    name: `Smoke Segment ${run}`, filters: JSON.stringify([{ field: 'status', op: 'eq', value: 'Analyzed' }]),
+  }, 201, 'filtered segment created');
+  ids.A.segment = segment.data.segment.id;
+  await request('A', 'PATCH', `/api/campaigns/${ids.A.campaign}`, { templateId: ids.A.template, segmentId: ids.A.segment }, 200, 'campaign linked to owned template and segment');
+  const startedCampaign = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/start`, undefined, 200, 'campaign starts with segment filter');
+  assert.equal(startedCampaign.data.leads, 1);
+  const approvalGate = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/send`, undefined, 200, 'campaign send creates approval-required drafts');
+  assert.equal(approvalGate.data.sent, 0);
+  assert.ok(approvalGate.data.approvalRequired >= 1);
 
   const draft = await analyzeDraft('A', ids.A.primaryLead);
   ids.A.email = draft.id;
@@ -134,6 +205,10 @@ async function main() {
   assert.equal(detailAfterSend.data.emails[0].status, 'Sent');
   assert.equal(detailAfterSend.data.followUps.filter(x => x.status === 'Pending').length, 1);
   ids.A.followUp = detailAfterSend.data.followUps[0].id;
+  const bounceBody = { emailMessageId: ids.A.email, event: 'bounce' };
+  await request('anon', 'POST', '/api/bounces', bounceBody, 200, 'signed bounce webhook accepted', signedWebhookHeaders(bounceBody));
+  const bouncedSuppressions = await request('A', 'GET', '/api/suppressions', undefined, 200, 'signed bounce creates account-scoped suppression');
+  assert.ok(bouncedSuppressions.data.entries.some((entry) => entry.email === ids.A.primaryEmail));
 
   const reply = await request('A', 'POST', '/api/replies', {
     leadId: ids.A.primaryLead, emailMessageId: ids.A.email, classification: 'Interested', contentSnippet: 'Interested, tell me more',
@@ -171,7 +246,7 @@ async function main() {
     ['POST', '/api/emails/send', { emailId: ids.A.email }, 404, 'cross-user email send denied'],
     ['POST', '/api/replies', { leadId: ids.A.primaryLead, emailMessageId: ids.A.email, classification: 'Replied' }, 404, 'cross-user reply creation denied'],
     ['POST', '/api/follow-ups/action', { id: ids.A.followUp, action: 'cancel' }, 404, 'cross-user follow-up action denied'],
-    ['DELETE', `/api/templates?id=${ids.A.template}`, undefined, 404, 'cross-user template delete denied'],
+    ['DELETE', `/api/templates/${ids.A.template}`, undefined, 404, 'cross-user template delete denied'],
     ['PATCH', '/api/settings/providers', { id: ids.A.provider, isActive: false }, 404, 'cross-user provider update denied'],
   ];
   for (const [method, path, body, status, assertion] of idor) await request('B', method, path, body, status, assertion);
@@ -196,7 +271,7 @@ async function main() {
   const bProviders = await request('B', 'GET', '/api/settings/providers', undefined, 200, 'provider collection is account scoped');
   assert.ok(!bProviders.data.providers.some(x => x.id === ids.A.provider));
 
-  await request('A', 'DELETE', `/api/templates?id=${ids.A.template}`, undefined, 200, 'disposable template cleaned up');
+  await request('A', 'DELETE', `/api/templates/${ids.A.template}`, undefined, 200, 'disposable template cleaned up');
   await request('A', 'DELETE', `/api/settings/providers?id=${ids.A.provider}`, undefined, 200, 'disposable provider cleaned up');
   await request('A', 'DELETE', `/api/suppressions?id=${ids.A.suppression}`, undefined, 200, 'disposable suppression cleaned up');
   await request('A', 'DELETE', `/api/leads/${ids.A.primaryLead}`, undefined, 200, 'primary disposable lead and related resources cleaned up');

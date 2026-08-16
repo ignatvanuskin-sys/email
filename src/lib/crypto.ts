@@ -1,19 +1,18 @@
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from "node:crypto";
-import { env } from "./env";
+import { assertSecureRuntimeConfig, env } from "./env";
 
 // AES-256-GCM encryption for provider credentials at rest (spec §21).
-// Key is supplied as base64-encoded 32 bytes via CREDENTIALS_KEY.
-// Even if no key is configured we derive a stable dev key so the app runs,
-// but production must set CREDENTIALS_KEY.
+// Production always requires a dedicated base64-encoded 32-byte key.
 
 function getKey(): Buffer {
+  assertSecureRuntimeConfig();
   const raw = env.CREDENTIALS_KEY ?? "";
   const buf = Buffer.from(raw, "base64");
   if (buf.length === 32) return buf;
-  // A raw 32-character key is supported for existing local installations.
-  if (raw.length === 32) return Buffer.from(raw, "utf8");
-  // Stable fallback for legacy development databases. This is deliberately
-  // derived from the stable session secret, never generated at startup.
+  // A raw 32-character key is supported only for existing local installations.
+  if (process.env.NODE_ENV !== "production" && raw.length === 32) return Buffer.from(raw, "utf8");
+  if (process.env.NODE_ENV === "production") throw new Error("CREDENTIALS_KEY must be base64-encoded 32 bytes");
+  // Stable fallback for legacy development databases only.
   return createHash("sha256").update(env.SESSION_SECRET).digest();
 }
 

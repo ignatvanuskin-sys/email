@@ -55,7 +55,11 @@ export async function POST(req: Request) {
       return badRequest("Outreach to this lead is blocked by its status.");
     }
 
-    await prisma.emailMessage.update({ where: { id: email.id }, data: { status: EMAIL_STATUS.SENDING } });
+    const sending = await prisma.emailMessage.updateMany({
+      where: { id: email.id, userId: user.id, status: { notIn: [EMAIL_STATUS.SENT, EMAIL_STATUS.SENDING] } },
+      data: { status: EMAIL_STATUS.SENDING },
+    });
+    if (sending.count !== 1) return badRequest("This email has already been sent or is currently sending");
 
     const result = await sendEmail(user.id, {
       to: lead.email,
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
         where: { id: email.id },
         data: { status: EMAIL_STATUS.FAILED, errorMessage: result.error },
       });
-      return badRequest(`This email couldn't be sent. Check your provider connection and try again. (${result.error})`);
+      return badRequest("This email couldn't be sent. Check your provider connection and try again.");
     }
 
     const now = new Date();
@@ -117,9 +121,6 @@ export async function POST(req: Request) {
       nextFollowUpAt: nextFollowUp.toISOString(),
     });
   } catch (err) {
-    if (err instanceof Error && err.message) {
-      return badRequest(err.message);
-    }
     return handleError(err);
   }
 }

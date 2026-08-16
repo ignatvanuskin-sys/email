@@ -35,7 +35,7 @@ export async function GET() {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
-    console.info("[providers] GET", { userId: user.id, databaseUrl: process.env.DATABASE_URL ?? "file:./dev.db" });
+    console.info("[providers] GET", { userId: user.id });
     const providers = await prisma.provider.findMany({
       where: { userId: user.id },
       orderBy: [{ kind: "asc" }, { isActive: "desc" }, { createdAt: "desc" }],

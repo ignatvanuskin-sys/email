@@ -43,7 +43,22 @@ export const leadCreateSchema = z.object({
   note: z.string().max(3000).optional().default(""),
 });
 
-export const leadUpdateSchema = leadCreateSchema.partial().extend({
+export const leadUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  companyOrChannel: z.string().trim().max(300).optional(),
+  email: z.string().email("A valid email is required").nullable().optional(),
+  websiteUrl: z.string().trim().max(1000).nullable().optional(),
+  youtubeUrl: z.string().trim().max(1000).nullable().optional(),
+  instagramUrl: z.string().trim().max(1000).nullable().optional(),
+  telegramUrl: z.string().trim().max(1000).nullable().optional(),
+  niche: z.string().trim().max(120).nullable().optional(),
+  followersCount: z.number().int().nonnegative().nullable().optional(),
+  contentActivity: z.number().int().min(0).max(100).optional(),
+  longFormCount: z.number().int().min(0).optional(),
+  shortFormCount: z.number().int().min(0).optional(),
+  growthSignal: z.number().int().min(0).max(100).optional(),
+  commercialPotential: z.number().int().min(0).max(100).optional(),
+  note: z.string().max(3000).optional(),
   status: z
     .enum(["New", "Analyzed", "Contacted", "Replied", "Interested", "Not Now", "Client", "Lost", "Unsubscribed"])
     .optional(),

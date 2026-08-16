@@ -28,10 +28,18 @@ export const env = {
   ENABLE_BILLING: envBool("ENABLE_BILLING", true),
   ENABLE_HTML_BUILDER: envBool("ENABLE_HTML_BUILDER", true),
   TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET ?? null,
+  BOUNCE_WEBHOOK_SECRET: process.env.BOUNCE_WEBHOOK_SECRET ?? process.env.WEBHOOK_SECRET ?? process.env.SESSION_SECRET ?? "insecure-dev-bounce-secret",
+  UNSUBSCRIBE_SECRET: process.env.UNSUBSCRIBE_SECRET ?? process.env.SESSION_SECRET ?? "insecure-dev-unsubscribe-secret",
 } as const;
 
 function envBool(name: string, fallback: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined) return fallback;
   return raw === "true" || raw === "1";
+}
+
+export function assertSecureRuntimeConfig(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  const required = [env.SESSION_SECRET, env.CREDENTIALS_KEY, env.WEBHOOK_SECRET, env.CRON_SECRET];
+  if (required.some((value) => !value || value.length < 32)) throw new Error("Secure production runtime configuration is incomplete");
 }

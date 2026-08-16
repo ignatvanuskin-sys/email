@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { prisma } from "./prisma";
-import { env } from "./env";
+import { assertSecureRuntimeConfig, env } from "./env";
 
 const COOKIE_NAME = "clipreach_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -29,6 +29,7 @@ function sessionTokenHash(token: string): string {
 }
 
 export async function createSession(payload: SessionPayload): Promise<void> {
+  assertSecureRuntimeConfig();
   const token = await new SignJWT({ userId: payload.userId, email: payload.email, name: payload.name })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -43,8 +44,8 @@ export async function createSession(payload: SessionPayload): Promise<void> {
   const store = await cookies();
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: env.APP_URL.startsWith("https"),
-    sameSite: "lax",
+    secure: env.APP_URL.startsWith("https://"),
+    sameSite: "strict",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
@@ -55,13 +56,13 @@ export async function destroySession(): Promise<void> {
   const token = store.get(COOKIE_NAME)?.value;
   if (token) {
     const tokenHash = sessionTokenHash(token);
-    // best-effort cleanup of the DB session row
     await prisma.session.deleteMany({ where: { tokenHash } }).catch(() => {});
   }
   store.delete(COOKIE_NAME);
 }
 
-// Returns the current User (with normalized provider/lead counts) or null.
+// Returns the current User only when both the signed JWT and the server-side
+// session row are valid. This makes logout/revocation effective for stolen JWTs.
 export async function getCurrentUser() {
   const token = await readSessionToken();
   if (!token) return null;
@@ -69,14 +70,22 @@ export async function getCurrentUser() {
   let payload: SessionPayload;
   try {
     const { payload: verified } = await jwtVerify<SessionPayload>(token, secret);
+    if (typeof verified.userId !== "string" || typeof verified.email !== "string") return null;
     payload = { userId: verified.userId, email: verified.email, name: verified.name };
   } catch {
     return null;
   }
 
-  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user) return null;
-  return user;
+  const tokenHash = sessionTokenHash(token);
+  const session = await prisma.session.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+  if (!session || session.userId !== payload.userId || session.expiresAt.getTime() <= Date.now()) {
+    if (session) await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
+    return null;
+  }
+  return session.user;
 }
 
 async function readSessionToken(): Promise<string | null> {

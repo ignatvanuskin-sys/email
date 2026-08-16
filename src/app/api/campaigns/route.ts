@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, ok, readJson, unauthorized } from "@/lib/api";
+import { validateCampaignReferences } from "@/lib/ownership";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     if (!user) return unauthorized();
     const body = await readJson(req);
     const d = createSchema.parse(body);
+    await validateCampaignReferences(user.id, d);
     const campaign = await prisma.campaign.create({
       data: {
         userId: user.id,
