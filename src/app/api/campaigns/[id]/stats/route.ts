@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, notFound, ok, unauthorized } from "@/lib/api";
+import { aggregateCampaignAnalytics } from "@/lib/campaignAnalytics";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -9,10 +10,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const campaign = await prisma.campaign.findFirst({ where: { id, userId: user.id } });
     if (!campaign) return notFound("Campaign not found");
 
-    const [leads, emails, replies] = await Promise.all([
+    const [leads, emails, replies, analytics] = await Promise.all([
       prisma.campaignLead.findMany({ where: { campaignId: id } }),
       prisma.emailMessage.findMany({ where: { campaignId: id } }),
       prisma.reply.findMany({ where: { userId: user.id, emailMessage: { campaignId: id } } }),
+      aggregateCampaignAnalytics(user.id, id),
     ]);
 
     const stats = {
@@ -40,7 +42,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       replyRate: v.sent > 0 ? Math.round((v.replies / v.sent) * 100) : 0,
     }));
 
-    return ok({ stats, variants: variantStats });
+    return ok({ stats, variants: variantStats, analytics });
   } catch (err) {
     return handleError(err);
   }

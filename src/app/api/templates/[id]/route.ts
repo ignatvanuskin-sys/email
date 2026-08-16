@@ -7,6 +7,7 @@ const updateSchema = z.object({
   category: z.string().trim().max(100).optional(),
   subject: z.string().trim().min(1).max(500).optional(),
   body: z.string().trim().min(1).max(50000).optional(),
+  documentJson: z.string().max(200000).optional().nullable(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +33,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = await readJson(req);
     const d = updateSchema.parse(body);
     const template = await prisma.emailTemplate.update({ where: { id }, data: d });
+    const latest = await prisma.emailTemplateVersion.findFirst({ where: { templateId: id }, orderBy: { version: "desc" } });
+    await prisma.emailTemplateVersion.create({ data: { templateId: id, version: (latest?.version ?? 0) + 1, subject: template.subject, body: template.body, documentJson: template.documentJson, createdBy: user.id } });
     return ok({ template });
   } catch (err) {
     return handleError(err);

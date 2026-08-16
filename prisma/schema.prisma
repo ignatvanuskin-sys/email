@@ -8,25 +8,228 @@ datasource db {
 }
 
 model User {
-  id                 String     @id @default(cuid())
-  email              String     @unique
-  passwordHash       String
-  name               String?
-  businessDescription String    @default("")
-  timezone           String     @default("UTC")
-  outreachPaused     Boolean    @default(false)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  passwordHash        String
+  name                String?
+  businessDescription String   @default("")
+  brandTone           String   @default("")
+  brandAudience       String   @default("")
+  brandOffer          String   @default("")
+  brandForbidden      String   @default("")
+  timezone            String   @default("UTC")
+  outreachPaused      Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  leads        Lead[]
-  sessions     Session[]
-  providers    Provider[]
-  suppressions Suppression[]
-  activities   Activity[]
-  templates    EmailTemplate[]
-  campaigns    Campaign[]
-  sequences    Sequence[]
-  segments     Segment[]
+  leads                 Lead[]
+  sessions              Session[]
+  providers             Provider[]
+  suppressions          Suppression[]
+  activities            Activity[]
+  templates             EmailTemplate[]
+  campaigns             Campaign[]
+  sequences             Sequence[]
+  segments              Segment[]
+  sendingDomains        SendingDomain[]
+  events                Event[]
+  apiKeys               ApiKey[]
+  webhookEndpoints      WebhookEndpoint[]
+  memberships           WorkspaceMembership[]
+  ownedWorkspaces       Workspace[]
+  sentInvitations       WorkspaceInvitation[]
+  auditLogs             AuditLog[]
+  emailReusableSections EmailReusableSection[]
+  usageCounters         UsageCounter[]
+  integrations          IntegrationConnection[]
+  subscription          Subscription?
+}
+
+model Workspace {
+  id           String   @id @default(cuid())
+  ownerId      String
+  name         String
+  slug         String   @unique
+  logoUrl      String?
+  brandColor   String   @default("#2563eb")
+  customDomain String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner       User                  @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships WorkspaceMembership[]
+  invitations WorkspaceInvitation[]
+  auditLogs   AuditLog[]
+
+  @@index([ownerId])
+}
+
+model WorkspaceMembership {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String   @default("Viewer")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId, role])
+}
+
+model WorkspaceInvitation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  email       String
+  role        String    @default("Viewer")
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, email, acceptedAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  userId      String
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    String   @default("{}")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model UsageCounter {
+  id        String   @id @default(cuid())
+  userId    String
+  period    String
+  metric    String
+  used      Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, period, metric])
+  @@index([userId, period])
+}
+
+model RateLimitCounter {
+  id        String   @id @default(cuid())
+  key       String
+  windowKey String
+  count     Int      @default(0)
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, windowKey])
+  @@index([expiresAt])
+}
+
+model IntegrationConnection {
+  id                     String    @id @default(cuid())
+  userId                 String
+  provider               String
+  name                   String
+  publicToken            String    @unique
+  secretEncrypted        String
+  webhookSecretEncrypted String?
+  status                 String    @default("Connected")
+  lastEventAt            DateTime?
+  lastError              String?
+  eventCount             Int       @default(0)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider, name])
+  @@index([userId, provider, status])
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  plan                 String    @default("Free")
+  status               String    @default("active")
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model OAuthState {
+  id        String    @id @default(cuid())
+  userId    String
+  provider  String
+  stateHash String    @unique
+  payload   String    @default("{}")
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, provider, expiresAt])
+}
+
+model SendJob {
+  id                String    @id @default(cuid())
+  userId            String
+  type              String    @default("campaign")
+  status            String    @default("Queued")
+  payload           String    @default("{}")
+  attempts          Int       @default(0)
+  maxAttempts       Int       @default(3)
+  nextRunAt         DateTime  @default(now())
+  lockUntil         DateTime?
+  lastError         String?
+  providerMessageId String?
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([status, nextRunAt, lockUntil])
+  @@index([userId, createdAt])
+}
+
+model SendingDomain {
+  id                      String    @id @default(cuid())
+  userId                  String
+  domain                  String
+  selector                String    @default("clipreach")
+  dkimPublicKey           String
+  dkimPrivateKeyEncrypted String
+  spfStatus               String    @default("Pending")
+  dkimStatus              String    @default("Pending")
+  dmarcStatus             String    @default("Pending")
+  overallStatus           String    @default("Pending")
+  spfValue                String?
+  dmarcValue              String?
+  lastError               String?
+  lastCheckedAt           DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, domain])
+  @@index([userId, overallStatus])
 }
 
 model Session {
@@ -40,37 +243,44 @@ model Session {
 }
 
 model Lead {
-  id                   String   @id @default(cuid())
-  userId               String
-  name                 String
-  companyOrChannel     String   @default("")
-  email                String?
-  websiteUrl           String?
-  youtubeUrl           String?
-  instagramUrl         String?
-  telegramUrl          String?
-  niche                String?
-  followersCount       Int?
-  contentActivity      Int      @default(0)
-  longFormCount        Int      @default(0)
-  shortFormCount       Int      @default(0)
-  growthSignal         Int      @default(0)
-  commercialPotential  Int      @default(0)
-  leadScore            Int      @default(0)
-  scoreBreakdown       String   @default("{}")
-  insight              String?
-  status               String   @default("New")
-  lastContactAt        DateTime?
-  nextFollowUpAt       DateTime?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  userId              String
+  name                String
+  companyOrChannel    String    @default("")
+  email               String?
+  websiteUrl          String?
+  youtubeUrl          String?
+  instagramUrl        String?
+  telegramUrl         String?
+  niche               String?
+  followersCount      Int?
+  contentActivity     Int       @default(0)
+  longFormCount       Int       @default(0)
+  shortFormCount      Int       @default(0)
+  growthSignal        Int       @default(0)
+  commercialPotential Int       @default(0)
+  leadScore           Int       @default(0)
+  scoreBreakdown      String    @default("{}")
+  insight             String?
+  status              String    @default("New")
+  lastContactAt       DateTime?
+  nextFollowUpAt      DateTime?
+  emailQuality        String    @default("Unknown")
+  emailRisk           String?
+  emailCheckedAt      DateTime?
+  isDisposable        Boolean   @default(false)
+  isRoleBased         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  emails     EmailMessage[]
-  followUps  FollowUp[]
-  replies    Reply[]
-  activities Activity[]
-  campaigns  CampaignLead[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails             EmailMessage[]
+  followUps          FollowUp[]
+  replies            Reply[]
+  activities         Activity[]
+  campaigns          CampaignLead[]
+  events             Event[]
+  journeyEnrollments JourneyEnrollment[]
 
   @@unique([userId, email])
   @@index([userId, status])
@@ -91,24 +301,26 @@ model Provider {
 }
 
 model EmailMessage {
-  id                  String    @id @default(cuid())
-  userId              String
-  leadId              String
-  campaignId          String?
-  sequenceStepId      String?
-  variantId           String?
-  subject             String
-  body                String
-  status              String    @default("Draft")
-  approvalHash        String?
-  approvalExpiresAt   DateTime?
-  providerMessageId   String?
-  errorMessage        String?
-  sentAt              DateTime?
-  createdAt           DateTime  @default(now())
+  id                String    @id @default(cuid())
+  userId            String
+  leadId            String
+  campaignId        String?
+  sequenceStepId    String?
+  variantId         String?
+  subject           String
+  body              String
+  status            String    @default("Draft")
+  approvalHash      String?
+  approvalExpiresAt DateTime?
+  providerMessageId String?
+  errorMessage      String?
+  sentAt            DateTime?
+  trackingToken     String?   @unique
+  createdAt         DateTime  @default(now())
 
-  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  replies Reply[]
+  lead           Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  replies        Reply[]
+  trackingEvents EmailTrackingEvent[]
 
   @@index([userId, status])
   @@index([campaignId])
@@ -130,16 +342,18 @@ model FollowUp {
 }
 
 model Reply {
-  id              String   @id @default(cuid())
-  userId          String
-  leadId          String
-  emailMessageId  String?
-  classification  String
-  contentSnippet  String
-  receivedAt      DateTime @default(now())
-  createdAt       DateTime @default(now())
+  id             String    @id @default(cuid())
+  userId         String
+  leadId         String
+  emailMessageId String?
+  classification String
+  contentSnippet String
+  receivedAt     DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  isRead         Boolean   @default(false)
+  archivedAt     DateTime?
 
-  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lead         Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
   emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
 }
 
@@ -155,14 +369,54 @@ model Suppression {
   @@unique([userId, email])
 }
 
-model Activity {
+model GlobalSuppression {
   id        String   @id @default(cuid())
-  userId    String
-  leadId    String?
-  campaignId String?
-  type      String
-  payload   String   @default("{}")
+  email     String   @unique
+  reason    String
+  source    String   @default("System")
   createdAt DateTime @default(now())
+
+  @@index([reason, createdAt])
+}
+
+model InboundEmailEvent {
+  id              String   @id @default(cuid())
+  providerEventId String   @unique
+  userId          String?
+  email           String
+  type            String
+  payload         String   @default("{}")
+  createdAt       DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model EmailTrackingEvent {
+  id         String   @id @default(cuid())
+  emailId    String
+  campaignId String?
+  type       String
+  elementId  String?
+  url        String?
+  userAgent  String?
+  ipHash     String?
+  occurredAt DateTime @default(now())
+
+  email EmailMessage @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, type, occurredAt])
+  @@index([emailId, type, occurredAt])
+  @@index([campaignId, elementId, type])
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  userId     String
+  leadId     String?
+  campaignId String?
+  type       String
+  payload    String   @default("{}")
+  createdAt  DateTime @default(now())
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
@@ -171,50 +425,92 @@ model Activity {
 }
 
 model EmailTemplate {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  category  String   @default("Custom")
-  subject   String
-  body      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  category     String   @default("Custom")
+  subject      String
+  body         String
+  documentJson String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions EmailTemplateVersion[]
+  sections EmailReusableSection[]
 
   @@index([userId, category])
 }
 
-model Campaign {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String
-  description String    @default("")
-  status      String    @default("Draft")
-  dailyLimit  Int       @default(25)
-  templateId  String?
-  sequenceId  String?
-  segmentId   String?
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model EmailTemplateVersion {
+  id           String   @id @default(cuid())
+  templateId   String
+  version      Int
+  subject      String
+  body         String
+  documentJson String?
+  createdBy    String
+  createdAt    DateTime @default(now())
 
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  leads       CampaignLead[]
-  variants    CampaignVariant[]
+  template EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId, createdAt])
+}
+
+model EmailReusableSection {
+  id           String   @id @default(cuid())
+  userId       String
+  templateId   String?
+  name         String
+  documentJson String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([userId, updatedAt])
+}
+
+model Campaign {
+  id                   String    @id @default(cuid())
+  userId               String
+  name                 String
+  description          String    @default("")
+  status               String    @default("Draft")
+  dailyLimit           Int       @default(25)
+  templateId           String?
+  sequenceId           String?
+  segmentId            String?
+  activeVersionId      String?
+  approvalHash         String?
+  approvalExpiresAt    DateTime?
+  frequencyCap         Int?
+  frequencyWindowDays  Int?
+  sendTimeOptimization Boolean   @default(false)
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads    CampaignLead[]
+  variants CampaignVariant[]
+  versions CampaignVersion[]
 
   @@index([userId, status])
 }
 
 model CampaignLead {
-  id         String   @id @default(cuid())
-  campaignId String
-  leadId     String
-  status     String   @default("Pending")
-  sentAt     DateTime?
-  repliedAt  DateTime?
-  createdAt  DateTime @default(now())
+  id                String    @id @default(cuid())
+  campaignId        String
+  leadId            String
+  status            String    @default("Pending")
+  sentAt            DateTime?
+  repliedAt         DateTime?
+  assignedVariantId String?
+  createdAt         DateTime  @default(now())
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -223,15 +519,40 @@ model CampaignLead {
   @@index([campaignId])
 }
 
-model Sequence {
-  id        String   @id @default(cuid())
-  userId    String
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model CampaignVersion {
+  id          String   @id @default(cuid())
+  campaignId  String
+  version     Int
+  snapshot    String
+  contentHash String
+  createdBy   String
+  createdAt   DateTime @default(now())
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  steps     SequenceStep[]
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, version])
+  @@index([campaignId, createdAt])
+}
+
+model Sequence {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  triggerType   String   @default("Manual")
+  isActive      Boolean  @default(false)
+  preset        String?
+  channel       String   @default("email")
+  conditionJson String?
+  goalEventType String?
+  exitEventType String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps       SequenceStep[]
+  enrollments JourneyEnrollment[]
+  nodes       SequenceNode[]
+  edges       SequenceEdge[]
 
   @@index([userId])
 }
@@ -247,9 +568,134 @@ model SequenceStep {
   enabled    Boolean  @default(true)
   createdAt  DateTime @default(now())
 
-  sequence    Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
 
   @@index([sequenceId, position])
+}
+
+model SequenceNode {
+  id         String   @id @default(cuid())
+  sequenceId String
+  type       String   @default("email")
+  title      String
+  positionX  Int      @default(0)
+  positionY  Int      @default(0)
+  configJson String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sequence Sequence       @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  outgoing SequenceEdge[] @relation("SequenceEdgeFrom")
+  incoming SequenceEdge[] @relation("SequenceEdgeTo")
+
+  @@unique([sequenceId, id])
+  @@index([sequenceId, type])
+}
+
+model SequenceEdge {
+  id            String   @id @default(cuid())
+  sequenceId    String
+  fromNodeId    String
+  toNodeId      String
+  label         String?
+  conditionJson String?
+  createdAt     DateTime @default(now())
+
+  sequence Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  fromNode SequenceNode @relation("SequenceEdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode   SequenceNode @relation("SequenceEdgeTo", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, fromNodeId, toNodeId])
+  @@index([sequenceId, fromNodeId])
+}
+
+model Event {
+  id             String   @id @default(cuid())
+  userId         String
+  leadId         String?
+  type           String
+  properties     String   @default("{}")
+  idempotencyKey String?
+  occurredAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead Lead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, type, occurredAt])
+}
+
+model JourneyEnrollment {
+  id          String    @id @default(cuid())
+  userId      String
+  sequenceId  String
+  leadId      String
+  eventId     String?
+  status      String    @default("Active")
+  currentStep Int       @default(0)
+  nextRunAt   DateTime?
+  lastError   String?
+  contextJson String    @default("{}")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([sequenceId, leadId])
+  @@index([userId, status, nextRunAt])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  prefix     String
+  keyHash    String    @unique
+  scopes     String    @default("contacts:write,events:write")
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model WebhookEndpoint {
+  id              String   @id @default(cuid())
+  userId          String
+  url             String
+  secretEncrypted String
+  events          String   @default("event.received")
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId, isActive])
+}
+
+model WebhookDelivery {
+  id            String    @id @default(cuid())
+  endpointId    String
+  eventType     String
+  payload       String
+  status        String    @default("Pending")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  responseCode  Int?
+  lastError     String?
+  deliveredAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }
 
 model Segment {

@@ -4,6 +4,8 @@ import { z } from "zod";
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
+  triggerType: z.string().trim().min(1).max(120).optional(),
+  isActive: z.boolean().optional(),
 });
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {

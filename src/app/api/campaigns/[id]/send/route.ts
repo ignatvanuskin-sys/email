@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, notFound, ok, unauthorized, badRequest } from "@/lib/api";
-import { EMAIL_STATUS } from "@/lib/status";
 import { checkSuppression } from "@/lib/suppression";
-import { sendEmail, applyTemplate } from "@/lib/emailSender";
-import { daysFromNow } from "@/lib/utils";
+import { applyTemplate } from "@/lib/emailSender";
+import { createTrackingToken } from "@/lib/tracking";
+import { canSendToContact } from "@/lib/frequencyGuard";
+import { enqueueSend } from "@/lib/sendPipeline";
 
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -24,11 +25,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
     const pendingLeads = await prisma.campaignLead.findMany({
       where: { campaignId: id, status: "Pending" },
-      include: { lead: true },
+       include: { lead: true },
       take: remaining,
     });
 
-    let sent = 0;
+    let queued = 0;
     for (const cl of pendingLeads) {
       const lead = cl.lead;
       if (!lead.email) {
@@ -42,18 +43,33 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         continue;
       }
 
+      if (campaign.frequencyCap && campaign.frequencyWindowDays) {
+        const frequency = await canSendToContact(user.id, lead.id, { maxMessages: campaign.frequencyCap, windowDays: campaign.frequencyWindowDays });
+        if (!frequency.allowed) {
+          await prisma.campaignLead.update({ where: { id: cl.id }, data: { status: "Skipped" } });
+          continue;
+        }
+      }
+
       let subject = "Hello";
       let body = "{{firstName}},\n\nThis is a test message.";
 
-      const variants = await prisma.campaignVariant.findMany({ where: { campaignId: id } });
-      if (variants.length > 0) {
-        const variant = variants.reduce((a, b) => (a.sent < b.sent ? a : b));
+       const variants = await prisma.campaignVariant.findMany({ where: { campaignId: id } });
+       if (cl.assignedVariantId) {
+         const variant = variants.find((item) => item.id === cl.assignedVariantId);
+         if (variant) {
+           subject = variant.subject;
+           body = variant.body;
+           await prisma.campaignVariant.update({ where: { id: variant.id }, data: { sent: { increment: 1 } } });
+         }
+       } else if (variants.length > 0) {
+         const variant = variants.reduce((a, b) => (a.sent < b.sent ? a : b));
         subject = variant.subject;
         body = variant.body;
         await prisma.campaignVariant.update({ where: { id: variant.id }, data: { sent: { increment: 1 } } });
-      } else if (campaign.templateId) {
-        const tmpl = await prisma.emailTemplate.findFirst({ where: { id: campaign.templateId } });
-        if (tmpl) { subject = tmpl.subject; body = tmpl.body; }
+       } else if (campaign.templateId) {
+         const tmpl = await prisma.emailTemplate.findFirst({ where: { id: campaign.templateId, userId: user.id } });
+         if (tmpl) { subject = tmpl.subject; body = tmpl.documentJson ?? tmpl.body; }
       }
 
       const vars = {
@@ -68,9 +84,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       };
       const finalSubject = applyTemplate(subject, vars);
       const finalBody = applyTemplate(body, vars);
-      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      const emailWithUnsub = `${finalBody}\n\n---\nDon't want to receive these emails? Unsubscribe: ${appUrl}/api/unsubscribe?email=${encodeURIComponent(lead.email)}`;
-
       const emailRecord = await prisma.emailMessage.create({
         data: {
           userId: user.id,
@@ -82,22 +95,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
         },
       });
 
-      const result = await sendEmail(user.id, { to: lead.email, subject: finalSubject, body: emailWithUnsub });
-      if (result.ok) {
-        await prisma.emailMessage.update({
-          where: { id: emailRecord.id },
-          data: { status: EMAIL_STATUS.SENT, providerMessageId: result.providerMessageId, sentAt: new Date() },
-        });
-        await prisma.campaignLead.update({ where: { id: cl.id }, data: { status: "Sent", sentAt: new Date() } });
-        await prisma.lead.update({ where: { id: lead.id }, data: { status: "Contacted", lastContactAt: new Date(), nextFollowUpAt: daysFromNow(4) } });
-        sent++;
-      } else {
-        await prisma.emailMessage.update({
-          where: { id: emailRecord.id },
-          data: { status: EMAIL_STATUS.FAILED, errorMessage: result.error },
-        });
-        await prisma.campaignLead.update({ where: { id: cl.id }, data: { status: "Skipped" } });
-      }
+      const trackingToken = createTrackingToken(user.id, emailRecord.id);
+      await prisma.emailMessage.update({ where: { id: emailRecord.id }, data: { trackingToken } });
+
+      await enqueueSend(user.id, "campaign", { campaignId: id, campaignLeadId: cl.id, leadId: lead.id, emailId: emailRecord.id, subject: finalSubject, body: finalBody });
+      queued++;
     }
 
     const remainingCount = await prisma.campaignLead.count({ where: { campaignId: id, status: "Pending" } });
@@ -105,7 +107,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       await prisma.campaign.update({ where: { id }, data: { status: "Completed", completedAt: new Date() } });
     }
 
-    return ok({ sent, remaining: remainingCount });
+    return ok({ queued, remaining: remainingCount });
   } catch (err) {
     return handleError(err);
   }

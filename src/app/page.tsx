@@ -25,6 +25,7 @@ const ACTIVITY_META: Record<string, { icon: string; cls: string; label: string }
 export default function HomePage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
+  const [onboarding, setOnboarding] = useState<{ percent: number; done: number; total: number; steps: Array<{ id: string; label: string; href: string; completed: boolean }> } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -38,6 +39,23 @@ export default function HomePage() {
       });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    api<{ onboarding: NonNullable<typeof onboarding> }>("/api/onboarding").then((result) => { if (active) setOnboarding(result.onboarding); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    let active = true;
+    let cursor = data.activities[0]?.createdAt ?? null;
+    const poll = async () => {
+      try { const result = await api<{ activities: Dashboard["activities"]; cursor: string | null }>(`/api/activity?since=${encodeURIComponent(cursor ?? "")}&limit=20`); if (active && result.activities.length) { setData((current) => current ? { ...current, activities: [...result.activities, ...current.activities].slice(0, 12) } : current); if (result.cursor) cursor = result.cursor; } } catch { /* polling is best effort */ }
+    };
+    const timer = window.setInterval(poll, 15_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [data]);
 
   if (error) return <div className="empty-state"><div className="es-sub" style={{ color: "var(--red)" }}>{error}</div></div>;
 
@@ -94,6 +112,8 @@ export default function HomePage() {
           ))}
         </div>
       </PageTransition>
+
+      {onboarding && onboarding.percent < 100 && <FadeContent><section style={{ margin: "20px 0" }}><div className="row" style={{ marginBottom: 8 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Get started</div><span className="small muted">{onboarding.done}/{onboarding.total} complete</span></div><div className="card" style={{ padding: 18 }}><div style={{ height: 8, background: "var(--surface-3)", borderRadius: 8, overflow: "hidden", marginBottom: 14 }}><div style={{ width: `${onboarding.percent}%`, height: "100%", background: "var(--accent)", transition: "width .25s ease" }} /></div><div className="stack" style={{ gap: 8 }}>{onboarding.steps.map((step) => <Link href={step.href} key={step.id} className="row small surface-hover" style={{ padding: 8, textDecoration: "none" }}><span className={`badge ${step.completed ? "green" : "gray"}`}>{step.completed ? "Done" : "Next"}</span><span className="grow">{step.label}</span></Link>)}</div></div></section></FadeContent>}
 
       <FadeContent>
         <section style={{ marginBottom: 24 }}>
@@ -235,4 +255,3 @@ export default function HomePage() {
     </div>
   );
 }
-

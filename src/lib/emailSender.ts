@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { decryptCredentials } from "./crypto";
 import { env } from "./env";
 import type { EmailProviderType } from "./status";
+import { renderContent } from "./dynamicContent";
 
 // ---------------------------------------------------------------------------
 // Provider-agnostic email sending (spec §17): single `sendEmail` interface
@@ -13,6 +14,7 @@ export type OutboundMessage = {
   to: string;
   subject: string;
   body: string;
+  html?: string;
 };
 
 export type SmtpDiagnostics = {
@@ -112,6 +114,7 @@ export async function sendEmail(
       to: message.to,
       subject: message.subject,
       text: message.body.replace(/\n\n+/g, "\n\n"),
+      ...(message.html ? { html: message.html } : {}),
     });
     const acceptedCount = Array.isArray(info.accepted) ? info.accepted.length : 0;
     const rejectedCount = Array.isArray(info.rejected) ? info.rejected.length : 0;
@@ -143,7 +146,7 @@ export function applyTemplate(
   text: string,
   vars: TemplateVars,
 ): string {
-  return text.replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_whole, key) => {
+  return renderContent(text, vars).replace(/\{\{\s*([A-Za-z0-9_.]+)\s*\}\}/g, (_whole, key) => {
     const value = vars[key];
     if (value === undefined || value === null) return "";
     return String(value);

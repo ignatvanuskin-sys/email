@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import type { User } from "@prisma/client";
 import { getCurrentUser } from "./auth";
+import { randomUUID } from "node:crypto";
 
 /** Returns the current user or null in an API context. */
 export async function getApiUser(): Promise<User | null> {
@@ -9,19 +10,24 @@ export async function getApiUser(): Promise<User | null> {
 }
 
 export function unauthorized(): NextResponse {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return apiError("Unauthorized", 401);
 }
 
 export function badRequest(message: string): NextResponse {
-  return NextResponse.json({ error: message }, { status: 400 });
+  return apiError(message, 400);
 }
 
 export function notFound(message = "Not found"): NextResponse {
-  return NextResponse.json({ error: message }, { status: 404 });
+  return apiError(message, 404);
 }
 
 export function serverError(message = "Something went wrong"): NextResponse {
-  return NextResponse.json({ error: message }, { status: 500 });
+  return apiError(message, 500);
+}
+
+export function apiError(message: string, status: number, code = status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST"): NextResponse {
+  const requestId = randomUUID();
+  return NextResponse.json({ error: message, code, requestId }, { status, headers: { "x-request-id": requestId } });
 }
 
 export function ok(data: unknown, status = 200): NextResponse {

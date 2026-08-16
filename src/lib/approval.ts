@@ -11,6 +11,14 @@ export function computeApprovalHash(emailId: string, subject: string, body: stri
 
 export const APPROVAL_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
+export function computeCampaignApprovalHash(campaignId: string, versionId: string, contentHash: string): string {
+  return createHmac("sha256", env.SESSION_SECRET).update(`${campaignId}\u0000${versionId}\u0000${contentHash}`).digest("base64url");
+}
+
+export function isCampaignApprovalValid(campaignId: string, versionId: string, contentHash: string, approvalHash: string | null, expiresAt: Date | null): boolean {
+  return Boolean(approvalHash && expiresAt && new Date(expiresAt).getTime() >= Date.now() && computeCampaignApprovalHash(campaignId, versionId, contentHash) === approvalHash);
+}
+
 export function isApprovalValid(
   emailId: string,
   subject: string,

@@ -19,6 +19,8 @@ type Campaign = {
   status: string;
   dailyLimit: number;
   createdAt: string;
+  activeVersionId?: string | null;
+  approvalExpiresAt?: string | null;
 };
 
 type CampaignLead = {
@@ -41,6 +43,12 @@ type Data = {
   leads: CampaignLead[];
   variants: CampaignVariant[];
 };
+type Version = { id: string; version: number; contentHash: string; createdAt: string };
+type Analytics = { totals: { sent: number; delivered: number; bounced: number; failed: number; opened: number; clicked: number; replied: number; unsubscribed: number }; rates: { openRate: number; clickRate: number; replyRate: number; bounceRate: number; unsubscribeRate: number }; heatmap: Array<{ elementId: string; url: string | null; clicks: number; uniqueEmails: number }>; byDay: Array<{ date: string; sent: number; opens: number; clicks: number; replies: number }> };
+type Cohort = { cohort: string; contacts: number; active: number; purchases: number; revenue: number; retentionRate: number; revenuePerContact: number };
+
+type PreflightIssue = { code: string; severity: "error" | "warning"; message: string; source?: string; field?: string };
+type Preflight = { ready: boolean; errors: number; warnings: number; checkedAt: string; issues: PreflightIssue[] };
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "gray",
@@ -74,6 +82,15 @@ export default function CampaignDetailPage() {
   const [descDraft, setDescDraft] = useState("");
   const [variantOpen, setVariantOpen] = useState(false);
   const [variantForm, setVariantForm] = useState({ name: "Variant B", subject: "", body: "" });
+  const [preflight, setPreflight] = useState<Preflight | null>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [insights, setInsights] = useState<{ summary: string; recommendations: string[] } | null>(null);
+  const [analyticsBusy, setAnalyticsBusy] = useState(false);
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
+  const [approvalExpiresAt, setApprovalExpiresAt] = useState<string | null>(null);
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [optimization, setOptimization] = useState({ frequencyCap: "", frequencyWindowDays: "", sendTimeOptimization: false });
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +98,8 @@ export default function CampaignDetailPage() {
       setData(d);
       setNameDraft(d.campaign.name);
       setDescDraft(d.campaign.description);
+      setActiveVersionId(d.campaign.activeVersionId ?? null);
+      setApprovalExpiresAt(d.campaign.approvalExpiresAt ?? null);
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -90,6 +109,25 @@ export default function CampaignDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadVersions = async () => {
+    try { const result = await api<{ versions: Version[] }>(`/api/campaigns/${id}/versions`); setVersions(result.versions); } catch (e) { notify(e instanceof Error ? e.message : "Versions failed", "error"); }
+  };
+
+  const createVersion = async () => {
+    try { const result = await api<{ version: Version }>(`/api/campaigns/${id}/versions`, { method: "POST" }); await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId: result.version.id }) }); setVersions((current) => [result.version, ...current]); setActiveVersionId(result.version.id); setApprovalExpiresAt(null); notify(`Version ${result.version.version} created. Approve it before starting.`, "info"); } catch (e) { notify(e instanceof Error ? e.message : "Version creation failed", "error"); }
+  };
+
+  const approveVersion = async () => {
+    try { if (!activeVersionId) return; const result = await api<{ campaign: { approvalExpiresAt: string | null } }>(`/api/campaigns/${id}/approve`, { method: "POST" }); setApprovalExpiresAt(result.campaign.approvalExpiresAt); notify("Campaign version approved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Approval failed", "error"); }
+  };
+
+  const activateVersion = async (versionId: string) => {
+    try { await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId }) }); setActiveVersionId(versionId); setApprovalExpiresAt(null); notify("Version selected. Approve it before starting.", "info"); } catch (e) { notify(e instanceof Error ? e.message : "Version activation failed", "error"); }
+  };
+
+  const loadCohorts = async () => { try { const result = await api<{ cohorts: Cohort[] }>("/api/analytics/cohorts"); setCohorts(result.cohorts); } catch (e) { notify(e instanceof Error ? e.message : "Cohorts failed", "error"); } };
+  const saveOptimization = async () => { try { await api(`/api/campaigns/${id}/optimization`, { method: "PATCH", body: JSON.stringify({ frequencyCap: optimization.frequencyCap ? Number(optimization.frequencyCap) : null, frequencyWindowDays: optimization.frequencyWindowDays ? Number(optimization.frequencyWindowDays) : null, sendTimeOptimization: optimization.sendTimeOptimization }) }); notify("Optimization settings saved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Optimization save failed", "error"); } };
 
   const act = async (action: string) => {
     setBusy(action);
@@ -102,6 +140,38 @@ export default function CampaignDetailPage() {
     } finally {
       setBusy("");
     }
+  };
+
+  const runPreflight = async () => {
+    setBusy("preflight");
+    try {
+      const result = await api<{ preflight: Preflight }>(`/api/campaigns/${id}/preflight`, { method: "POST" });
+      setPreflight(result.preflight);
+      notify(result.preflight.ready ? "Preflight пройден. Кампания готова к запуску." : "Исправьте блокирующие ошибки preflight.", result.preflight.ready ? "success" : "error");
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Preflight failed", "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const loadAnalytics = async () => {
+    setAnalyticsBusy(true);
+    try {
+      const result = await api<{ analytics: Analytics }>(`/api/campaigns/${id}/stats`);
+      setAnalytics(result.analytics);
+    } catch (e) { notify(e instanceof Error ? e.message : "Analytics failed", "error"); }
+    finally { setAnalyticsBusy(false); }
+  };
+
+  const loadInsights = async () => {
+    setAnalyticsBusy(true);
+    try {
+      const result = await api<{ analytics: Analytics; insights: { summary: string; recommendations: string[] } }>(`/api/campaigns/${id}/insights`, { method: "POST" });
+      setAnalytics(result.analytics);
+      setInsights(result.insights);
+    } catch (e) { notify(e instanceof Error ? e.message : "AI insights failed", "error"); }
+    finally { setAnalyticsBusy(false); }
   };
 
   const patch = async (body: Record<string, unknown>) => {
@@ -244,6 +314,12 @@ export default function CampaignDetailPage() {
         </FadeContent>
 
         <div className="row" style={{ gap: 8, margin: "16px 0" }}>
+          {(campaign.status === "Draft" || campaign.status === "Paused") && <><button className="btn" onClick={loadVersions}>Load versions</button><button className="btn" onClick={createVersion}>Create version</button><button className="btn" onClick={approveVersion} disabled={!activeVersionId}>Approve version</button></>}
+          {(campaign.status === "Draft" || campaign.status === "Paused") && (
+            <button className="btn" onClick={runPreflight} disabled={!!busy}>
+              {busy === "preflight" ? <><span className="spinner" /> Checking...</> : "Run preflight"}
+            </button>
+          )}
           {campaign.status === "Draft" && (
             <button className="btn btn-primary" onClick={() => act("start")} disabled={!!busy}>
               {busy === "start" ? <><span className="spinner" /> Starting...</> : "Start"}
@@ -273,6 +349,44 @@ export default function CampaignDetailPage() {
             </>
           )}
         </div>
+
+        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Campaign versions</div>{approvalExpiresAt && <span className="badge green">Approved until {new Date(approvalExpiresAt).toLocaleTimeString()}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Version {version.version}</span><span className="muted">{new Date(version.createdAt).toLocaleString()}</span><code>{version.contentHash.slice(0, 10)}</code></button>)}</div></section>}
+
+        {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Send optimization</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Max messages</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="No cap" /></div><div className="field"><label>Window (days)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Optimize send time</label><button className="btn btn-primary" onClick={saveOptimization}>Save</button></div><div className="small muted">Contacts over the cap are skipped for this batch. Journey contacts are deferred until the next allowed time.</div></section>}
+
+        {preflight && (
+          <section className="card" style={{ padding: 18, marginBottom: 20, borderColor: preflight.ready ? "var(--green)" : "var(--red)" }}>
+            <div className="row" style={{ marginBottom: 12 }}>
+              <div className="grow">
+                <div className="section-label" style={{ marginBottom: 2 }}>Campaign preflight</div>
+                <div className="small muted">Checked {new Date(preflight.checkedAt).toLocaleString()} · {preflight.errors} errors · {preflight.warnings} warnings</div>
+              </div>
+              <span className={`badge ${preflight.ready ? "green" : "red"}`}>{preflight.ready ? "Ready" : "Blocked"}</span>
+            </div>
+            {preflight.issues.length === 0 ? <div className="small">No issues found.</div> : <div className="stack" style={{ gap: 8 }}>
+              {preflight.issues.map((issue, index) => (
+                <div className="row small" key={`${issue.code}-${issue.source ?? "campaign"}-${index}`} style={{ alignItems: "start" }}>
+                  <span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity}</span>
+                  <div><div>{issue.message}</div>{issue.source && <div className="muted">Source: {issue.source}</div>}</div>
+                </div>
+              ))}
+            </div>}
+          </section>
+        )}
+
+        <section className="card" style={{ padding: 18, marginBottom: 20 }}>
+          <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Campaign intelligence</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Loading..." : "Refresh"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>AI insights</button></div>
+          {!analytics ? <div className="small muted">Load analytics after sending begins.</div> : <>
+            <div className="row" style={{ gap: 18, flexWrap: "wrap" }}><Metric label="Open rate" value={`${analytics.rates.openRate}%`} /><Metric label="Click rate" value={`${analytics.rates.clickRate}%`} /><Metric label="Reply rate" value={`${analytics.rates.replyRate}%`} /><Metric label="Bounce rate" value={`${analytics.rates.bounceRate}%`} /></div>
+            <div className="divider" />
+            <div className="section-label">Click heatmap</div>
+            {analytics.heatmap.length === 0 ? <div className="small muted">No click events yet. Link rewriting will be enabled with the HTML editor.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} clicks</span><span className="muted">{item.uniqueEmails} unique</span></div>)}</div>}
+            {analytics.byDay.length > 0 && <><div className="divider" /><div className="section-label">Daily trend</div><div className="stack" style={{ gap: 6 }}>{analytics.byDay.map((day) => <div className="row small" key={day.date}><span className="grow">{day.date}</span><span>{day.sent} sent</span><span>{day.opens} opens</span><span>{day.clicks} clicks</span><span>{day.replies} replies</span></div>)}</div></>}
+            {insights && <div className="card" style={{ padding: 12, marginTop: 14, background: "var(--surface-2)" }}><strong>AI summary</strong><p className="small">{insights.summary}</p><ul className="small">{insights.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}</ul></div>}
+          </>}
+        </section>
+
+        <section className="card" style={{ padding: 18, marginBottom: 20 }}><div className="row"><div className="section-label grow">Cohorts and revenue</div><button className="btn btn-sm" onClick={loadCohorts}>Load cohorts</button></div>{cohorts.length === 0 ? <div className="small muted">Track contact.created and purchase events to see retention and revenue.</div> : <div className="stack" style={{ gap: 6, marginTop: 8 }}>{cohorts.map((cohort) => <div className="row small" key={cohort.cohort}><span className="grow">{cohort.cohort}</span><span>{cohort.contacts} contacts</span><span>{cohort.retentionRate}% retention</span><span>{cohort.purchases} purchases</span><span>{cohort.revenue.toFixed(2)} revenue</span><span>{cohort.revenuePerContact.toFixed(2)}/contact</span></div>)}</div>}</section>
 
         {variants.length > 0 && (
           <FadeContent>
@@ -371,3 +485,5 @@ function StatBox({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+
+function Metric({ label, value }: { label: string; value: string }) { return <div className="grow" style={{ minWidth: 100 }}><div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div><div className="small muted">{label}</div></div>; }

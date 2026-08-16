@@ -1,0 +1,5 @@
+import { getApiUser, handleError, ok, unauthorized } from "@/lib/api";
+import { getOnboardingProgress } from "@/lib/onboarding";
+import { prisma } from "@/lib/prisma";
+
+export async function GET() { try { const user = await getApiUser(); if (!user) return unauthorized(); const [onboarding, templates, campaigns, providers, domains] = await Promise.all([getOnboardingProgress(user.id), prisma.emailTemplate.findMany({ where: { userId: user.id }, select: { id: true, name: true, subject: true }, orderBy: { updatedAt: "desc" }, take: 20 }), prisma.campaign.findMany({ where: { userId: user.id }, select: { id: true, name: true, status: true }, orderBy: { createdAt: "desc" }, take: 20 }), prisma.provider.findMany({ where: { userId: user.id }, select: { id: true, kind: true, isActive: true }, orderBy: { createdAt: "desc" } }), prisma.sendingDomain.findMany({ where: { userId: user.id }, select: { id: true, domain: true, overallStatus: true }, orderBy: { createdAt: "desc" } })]); return ok({ onboarding, options: { templates, campaigns, providers, domains } }); } catch (error) { return handleError(error); } }

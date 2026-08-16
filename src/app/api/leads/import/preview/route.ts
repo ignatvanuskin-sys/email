@@ -35,8 +35,14 @@ export async function POST(req: Request) {
     if (!records.length) return badRequest("The source contains no data rows");
     const headers = Object.keys(records[0]);
     const mappings: ImportMapping = mappingRaw ? JSON.parse(mappingRaw) : autoMapColumns(headers);
-    const existing = new Set((await prisma.lead.findMany({ where: { userId: user.id, email: { not: null } }, select: { email: true } })).map((row) => row.email!.toLowerCase()));
-    const rows = mapAndValidateRows(records, mappings, existing);
+    const [leadEmails, localSuppressions, globalSuppressions] = await Promise.all([
+      prisma.lead.findMany({ where: { userId: user.id, email: { not: null } }, select: { email: true } }),
+      prisma.suppression.findMany({ where: { userId: user.id }, select: { email: true } }),
+      prisma.globalSuppression.findMany({ select: { email: true } }),
+    ]);
+    const existing = new Set(leadEmails.map((row) => row.email!.toLowerCase()));
+    const suppressed = new Set([...localSuppressions, ...globalSuppressions].map((row) => row.email.toLowerCase()));
+    const rows = mapAndValidateRows(records, mappings, existing, suppressed);
     return ok({
       headers,
       mapping: mappings,

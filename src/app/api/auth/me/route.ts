@@ -9,6 +9,10 @@ export async function GET() {
       email: user.email,
       name: user.name,
       businessDescription: user.businessDescription,
+      brandTone: user.brandTone,
+      brandAudience: user.brandAudience,
+      brandOffer: user.brandOffer,
+      brandForbidden: user.brandForbidden,
       outreachPaused: user.outreachPaused,
     },
   });

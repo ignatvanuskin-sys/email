@@ -1,0 +1,94 @@
+{
+  "startedAt": "2026-08-09T13:10:13.042Z",
+  "commands": [
+    {
+      "name": "prisma-generate",
+      "command": "npx.cmd prisma generate",
+      "pid": 9728,
+      "startedAt": "2026-08-09T13:10:13.045Z",
+      "finishedAt": "2026-08-09T13:10:16.965Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\prisma-generate.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\prisma-generate.stderr.log",
+      "error": null
+    },
+    {
+      "name": "typecheck",
+      "command": "npm.cmd run typecheck",
+      "pid": 6464,
+      "startedAt": "2026-08-09T13:10:16.966Z",
+      "finishedAt": "2026-08-09T13:10:23.194Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\typecheck.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\typecheck.stderr.log",
+      "error": null
+    },
+    {
+      "name": "test",
+      "command": "npm.cmd test",
+      "pid": 6084,
+      "startedAt": "2026-08-09T13:10:23.195Z",
+      "finishedAt": "2026-08-09T13:10:26.793Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\test.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\test.stderr.log",
+      "error": null
+    },
+    {
+      "name": "lint",
+      "command": "npm.cmd run lint",
+      "pid": 21844,
+      "startedAt": "2026-08-09T13:10:26.794Z",
+      "finishedAt": "2026-08-09T13:10:34.072Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\lint.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\lint.stderr.log",
+      "error": null
+    },
+    {
+      "name": "build",
+      "command": "npm.cmd run build",
+      "pid": 2484,
+      "startedAt": "2026-08-09T13:10:34.073Z",
+      "finishedAt": "2026-08-09T13:11:07.996Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\build.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\build.stderr.log",
+      "error": null
+    },
+    {
+      "name": "mvp-smoke",
+      "command": "C:\\Program Files\\nodejs\\node.exe scripts/mvp-smoke.mjs",
+      "pid": 22252,
+      "startedAt": "2026-08-09T13:11:10.016Z",
+      "finishedAt": "2026-08-09T13:11:13.191Z",
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\mvp-smoke.stdout.log",
+      "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\mvp-smoke.stderr.log",
+      "error": null
+    }
+  ],
+  "production": {
+    "pid": 8544,
+    "port": 52914,
+    "baseUrl": "http://127.0.0.1:52914",
+    "stdoutPath": "C:\\TGOD\\рассылка email\\.final-verification\\production.stdout.log",
+    "stderrPath": "C:\\TGOD\\рассылка email\\.final-verification\\production.stderr.log",
+    "health": 200,
+    "smokeExitCode": 0,
+    "terminated": true
+  },
+  "finishedAt": "2026-08-09T13:11:13.405Z"
+}

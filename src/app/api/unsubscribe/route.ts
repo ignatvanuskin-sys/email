@@ -1,60 +1,39 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import { SUPPRESSION_REASON, CAMPAIGN_LEAD_STATUS } from "@/lib/status";
+import { CAMPAIGN_LEAD_STATUS, SUPPRESSION_REASON } from "@/lib/status";
+import { parseUnsubscribeToken } from "@/lib/webhookSecurity";
 
-const schema = z.object({
-  email: z.string().email(),
-  reason: z.string().optional().default("Unsubscribed"),
-});
-
-// Applies an unsubscribe for every owner of a lead with this email address.
-async function processUnsubscribe(email: string) {
-  const normalizedEmail = email.toLowerCase().trim();
-  if (!normalizedEmail) return;
-
-  const leads = await prisma.lead.findMany({ where: { email: normalizedEmail }, select: { id: true, userId: true } });
-
-  for (const lead of leads) {
-    await prisma.suppression.upsert({
-      where: { userId_email: { userId: lead.userId, email: normalizedEmail } },
-      create: { userId: lead.userId, email: normalizedEmail, reason: SUPPRESSION_REASON.UNSUBSCRIBED },
-      update: {},
-    });
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: { status: "Unsubscribed" },
-    });
-    await prisma.campaignLead.updateMany({
-      where: { leadId: lead.id, status: "Pending" },
-      data: { status: CAMPAIGN_LEAD_STATUS.UNSUBSCRIBED },
-    });
-    await prisma.followUp.updateMany({
-      where: { userId: lead.userId, leadId: lead.id, status: "Pending" },
-      data: { status: "Cancelled" },
-    });
-  }
+async function processToken(token: string): Promise<boolean> {
+  const parsed = parseUnsubscribeToken(token);
+  if (!parsed) return false;
+  const message = await prisma.emailMessage.findFirst({ where: { id: parsed.messageId, userId: parsed.userId }, include: { lead: true } });
+  const email = message?.lead.email?.trim().toLowerCase();
+  if (!message || !email) return false;
+  await prisma.$transaction([
+    prisma.suppression.upsert({ where: { userId_email: { userId: parsed.userId, email } }, create: { userId: parsed.userId, email, reason: SUPPRESSION_REASON.UNSUBSCRIBED }, update: { reason: SUPPRESSION_REASON.UNSUBSCRIBED } }),
+    prisma.lead.update({ where: { id: message.lead.id }, data: { status: "Unsubscribed" } }),
+    prisma.emailMessage.update({ where: { id: message.id }, data: { status: "Unsubscribed" } }),
+    prisma.campaignLead.updateMany({ where: { leadId: message.lead.id, status: "Pending" }, data: { status: CAMPAIGN_LEAD_STATUS.UNSUBSCRIBED } }),
+    prisma.followUp.updateMany({ where: { userId: parsed.userId, leadId: message.lead.id, status: "Pending" }, data: { status: "Cancelled" } }),
+  ]);
+  return true;
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { email } = schema.parse(body);
-    await processUnsubscribe(email);
-    return NextResponse.json({ ok: true });
+    const body = await req.json() as { token?: unknown };
+    const ok = typeof body.token === "string" && await processToken(body.token);
+    return NextResponse.json({ ok }, { status: ok ? 200 : 400 });
   } catch {
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: false }, { status: 400 });
   }
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const email = url.searchParams.get("email") || "";
-  if (email) {
-    await processUnsubscribe(email);
-  }
+  const token = new URL(req.url).searchParams.get("token") ?? "";
+  const success = await processToken(token);
   return new NextResponse(
-    "<html><body style='font-family:sans-serif;display:grid;place-items:center;height:100vh;'><div style='text-align:center'><h1>You're unsubscribed</h1><p>You will no longer receive emails from this sender.</p></div></body></html>",
-    { headers: { "content-type": "text/html" } },
+    `<html><body style="font-family:sans-serif;display:grid;place-items:center;height:100vh"><div style="text-align:center"><h1>${success ? "You're unsubscribed" : "Invalid unsubscribe link"}</h1><p>${success ? "You will no longer receive emails from this sender." : "This link is invalid. Contact the sender if you still receive email."}</p></div></body></html>`,
+    { status: success ? 200 : 400, headers: { "content-type": "text/html; charset=utf-8" } },
   );
 }

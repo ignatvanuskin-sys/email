@@ -28,19 +28,25 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingKind, setSavingKind] = useState<"email" | "ai" | null>(null);
+  const [workspace, setWorkspace] = useState({ name: "", logoUrl: "", brandColor: "#2563eb", customDomain: "" });
+  const [workspaceRole, setWorkspaceRole] = useState("Owner");
   const { notify } = useToast();
 
   const load = useCallback(async () => {
     try {
-      const [me, prov, sup] = await Promise.all([
+      const [me, prov, sup, ws] = await Promise.all([
         api<{ user: { outreachPaused: boolean } }>("/api/auth/me"),
         api<{ providers: Provider[] }>("/api/settings/providers"),
         api<{ entries: Suppression[] }>("/api/suppressions"),
+        api<{ workspace: { name: string; logoUrl: string | null; brandColor: string; customDomain: string | null }; role: string }>("/api/workspace"),
+        api<{ workspace: typeof workspace; role: string }>("/api/workspace"),
       ]);
       setPaused(me.user.outreachPaused);
       setProviders(prov.providers);
       console.info("[settings] providers loaded", prov.providers.map((p) => ({ id: p.id, kind: p.kind, configured: p.configured, isActive: p.isActive })));
       setSuppressions(sup.entries);
+      setWorkspace({ name: ws.workspace.name, logoUrl: ws.workspace.logoUrl ?? "", brandColor: ws.workspace.brandColor, customDomain: ws.workspace.customDomain ?? "" });
+      setWorkspaceRole(ws.role);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось загрузить данные");
     } finally {
@@ -141,7 +147,12 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <ProviderPane label="Почтовый провайдер" providers={providers.filter((p) => p.kind === "email")} onRemove={removeProvider}>
+        <WorkspacePane workspace={workspace} role={workspaceRole} onSaved={(next) => setWorkspace(next)} />
+        <PlatformAccessPane />
+        <UsagePane />
+        <IntegrationsPane />
+
+          <ProviderPane label="Почтовый провайдер" providers={providers.filter((p) => p.kind === "email" || p.kind === "telegram")} onRemove={removeProvider}>
           <EmailForm onSave={saveProvider} saving={savingKind === "email"} savedProvider={providers.find((p) => p.kind === "email" && p.isActive)} />
         </ProviderPane>
 
@@ -331,4 +342,66 @@ function AddEmail({ onAdd }: { onAdd: (email: string) => void }) {
       <button className="btn btn-primary">Block</button>
     </form>
   );
+}
+
+function UsagePane() {
+  const [usage, setUsage] = useState<{ plan: string; period: string; metrics: Array<{ metric: string; used: number; limit: number; remaining: number; percent: number }> } | null>(null);
+  useEffect(() => { api<{ usage: typeof usage }>("/api/usage").then((result) => setUsage(result.usage)).catch(() => {}); }, []);
+  if (!usage) return null;
+  return <section className="card" style={{ padding: 18 }}><div className="row"><div className="section-label grow">Usage and plan</div><span className="badge blue">{usage.plan} · {usage.period}</span></div><div className="stack" style={{ gap: 10, marginTop: 10 }}>{usage.metrics.map((metric) => <div key={metric.metric}><div className="row small"><span className="grow">{metric.metric}</span><span>{metric.used.toLocaleString()} / {metric.limit.toLocaleString()}</span></div><div style={{ height: 6, background: "var(--surface-3)", borderRadius: 6, overflow: "hidden", marginTop: 4 }}><div style={{ width: `${metric.percent}%`, height: "100%", background: metric.percent >= 90 ? "var(--red)" : "var(--accent)" }} /></div></div>)}</div><div className="small muted" style={{ marginTop: 10 }}>Billing is ready to connect. Current limits are enforced monthly.</div></section>;
+}
+
+function IntegrationsPane() {
+  const { notify } = useToast();
+  const [provider, setProvider] = useState<"shopify" | "woocommerce">("shopify");
+  const [name, setName] = useState("Store");
+  const [secret, setSecret] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [items, setItems] = useState<Array<{ id: string; provider: string; name: string; publicToken: string; status: string; eventCount: number; lastEventAt: string | null; lastError: string | null }>>([]);
+  const load = useCallback(async () => { try { const result = await api<{ integrations: typeof items }>("/api/integrations"); setItems(result.integrations); } catch (error) { notify(error instanceof Error ? error.message : "Integrations failed", "error"); } }, [notify]);
+  useEffect(() => { void load(); }, [load]);
+  const create = async () => { try { const result = await api<{ webhookUrl: string }>("/api/integrations", { method: "POST", body: JSON.stringify({ provider, name, secret }) }); setWebhookUrl(result.webhookUrl); setSecret(""); await load(); notify("Integration created", "success"); } catch (error) { notify(error instanceof Error ? error.message : "Integration creation failed", "error"); } };
+  return <section className="card" style={{ padding: 18 }}><div className="row"><div className="grow"><div className="section-label">Commerce integrations</div><div className="small muted">Connect Shopify or WooCommerce webhooks to cart, order and product Journey triggers.</div></div><span className="badge blue">Event-based</span></div><div className="row" style={{ alignItems: "end", gap: 8, marginTop: 12 }}><div className="field"><label>Provider</label><select className="select" value={provider} onChange={(e) => setProvider(e.target.value as typeof provider)}><option value="shopify">Shopify</option><option value="woocommerce">WooCommerce</option></select></div><div className="field grow"><label>Name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></div><div className="field grow"><label>Webhook secret</label><input className="input" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="At least 16 characters" /></div><button className="btn btn-primary" onClick={create} disabled={secret.length < 16}>Connect</button></div>{webhookUrl && <div className="small" style={{ marginTop: 10 }}>Webhook URL: <code style={{ overflowWrap: "anywhere" }}>{webhookUrl}</code></div>}<div className="stack" style={{ gap: 7, marginTop: 12 }}>{items.map((item) => <div className="row small" key={item.id}><span className="badge gray">{item.provider}</span><span className="grow">{item.name}</span><span>{item.eventCount} events</span><span className={`badge ${item.status === "Connected" ? "green" : "red"}`}>{item.status}</span>{item.lastError && <span className="muted">{item.lastError}</span>}</div>)}</div></section>;
+}
+
+function PlatformAccessPane() {
+  const { notify } = useToast();
+  const [keyName, setKeyName] = useState("Production integration");
+  const [newKey, setNewKey] = useState("");
+  const [keys, setKeys] = useState<Array<{ id: string; name: string; prefix: string; scopes: string[]; createdAt: string }>>([]);
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [newSecret, setNewSecret] = useState("");
+  const [endpoints, setEndpoints] = useState<Array<{ id: string; url: string; events: string[]; isActive: boolean; createdAt: string }>>([]);
+  const [members, setMembers] = useState<Array<{ id: string; role: string; user: { email: string; name: string | null } }>>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteToken, setInviteToken] = useState("");
+  const [logs, setLogs] = useState<Array<{ id: string; action: string; resource: string; createdAt: string }>>([]);
+  const [deliveryEndpoint, setDeliveryEndpoint] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<Array<{ id: string; eventType: string; status: string; attempts: number; responseCode: number | null; lastError: string | null }>>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const [keyData, webhookData, memberData, auditData] = await Promise.all([api<{ keys: typeof keys }>("/api/settings/api-keys"), api<{ endpoints: typeof endpoints }>("/api/settings/webhooks"), api<{ members: typeof members }>("/api/workspace/members"), api<{ logs: typeof logs }>("/api/workspace/audit")]);
+      setKeys(keyData.keys); setEndpoints(webhookData.endpoints); setMembers(memberData.members); setLogs(auditData.logs);
+    } catch (error) { notify(error instanceof Error ? error.message : "Access data failed", "error"); }
+  }, [notify]);
+  useEffect(() => { void load(); }, [load]);
+  const createKey = async () => { try { const result = await api<{ key: string }>("/api/settings/api-keys", { method: "POST", body: JSON.stringify({ name: keyName }) }); setNewKey(result.key); await load(); notify("API key created. Copy it now; it will not be shown again.", "success"); } catch (error) { notify(error instanceof Error ? error.message : "API key failed", "error"); } };
+  const createWebhook = async () => { try { const result = await api<{ secret: string }>("/api/settings/webhooks", { method: "POST", body: JSON.stringify({ url: webhookUrl }) }); setNewSecret(result.secret); setWebhookUrl(""); await load(); notify("Webhook created. Save the secret now.", "success"); } catch (error) { notify(error instanceof Error ? error.message : "Webhook failed", "error"); } };
+  const invite = async () => { try { const result = await api<{ token: string }>("/api/workspace/members", { method: "POST", body: JSON.stringify({ email: inviteEmail, role: "Viewer" }) }); setInviteToken(result.token); setInviteEmail(""); await load(); } catch (error) { notify(error instanceof Error ? error.message : "Invitation failed", "error"); } };
+  const loadDeliveries = async (id: string) => { try { const result = await api<{ deliveries: typeof deliveries }>(`/api/settings/webhooks/${id}/deliveries`); setDeliveryEndpoint(id); setDeliveries(result.deliveries); } catch (error) { notify(error instanceof Error ? error.message : "Delivery log failed", "error"); } };
+  const replay = async (id: string, deliveryId: string) => { try { await api(`/api/settings/webhooks/${id}/replay?deliveryId=${encodeURIComponent(deliveryId)}`, { method: "POST" }); if (deliveryEndpoint) await loadDeliveries(deliveryEndpoint); } catch (error) { notify(error instanceof Error ? error.message : "Replay failed", "error"); } };
+  return <section className="card" style={{ padding: 18 }}><div className="section-label">Platform access</div><div className="stack" style={{ gap: 18 }}><div><strong>API keys</strong><div className="row" style={{ marginTop: 8 }}><input className="input grow" value={keyName} onChange={(e) => setKeyName(e.target.value)} /><button className="btn btn-primary" onClick={createKey}>Create key</button></div>{newKey && <code className="small" style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{newKey}</code>}{keys.map((key) => <div className="row small" key={key.id} style={{ marginTop: 6 }}><span className="grow">{key.name} · {key.prefix}...</span><span className="muted">{key.scopes.join(", ")}</span></div>)}</div><div><strong>Webhooks</strong><div className="row" style={{ marginTop: 8 }}><input className="input grow" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} placeholder="https://example.com/webhook" /><button className="btn btn-primary" onClick={createWebhook} disabled={!webhookUrl}>Create webhook</button></div>{newSecret && <code className="small" style={{ display: "block", marginTop: 8, overflowWrap: "anywhere" }}>{newSecret}</code>}{endpoints.map((endpoint) => <div className="row small" key={endpoint.id} style={{ marginTop: 6 }}><span className="grow" style={{ overflowWrap: "anywhere" }}>{endpoint.url}</span><button className="btn btn-sm" onClick={() => loadDeliveries(endpoint.id)}>Deliveries</button></div>)}</div>{deliveryEndpoint && <div><strong>Delivery log</strong>{deliveries.map((delivery) => <div className="row small" key={delivery.id} style={{ marginTop: 6 }}><span className="grow">{delivery.eventType} · {delivery.status}</span><span>{delivery.attempts} attempts</span>{delivery.responseCode && <span>HTTP {delivery.responseCode}</span>}{delivery.status !== "Delivered" && <button className="btn btn-sm" onClick={() => replay(deliveryEndpoint, delivery.id)}>Replay</button>}</div>)}</div>}<div><strong>Team</strong><div className="row" style={{ marginTop: 8 }}><input className="input grow" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="teammate@example.com" /><button className="btn" onClick={invite} disabled={!inviteEmail}>Invite viewer</button></div>{inviteToken && <div className="small muted" style={{ marginTop: 6 }}>Invitation token: <code>{inviteToken}</code></div>}{members.map((member) => <div className="row small" key={member.id} style={{ marginTop: 6 }}><span className="grow">{member.user.name || member.user.email}</span><span className="badge gray">{member.role}</span></div>)}</div><div><strong>Audit log</strong>{logs.slice(0, 8).map((log) => <div className="row small" key={log.id} style={{ marginTop: 6 }}><span className="grow">{log.action} · {log.resource}</span><span className="muted">{new Date(log.createdAt).toLocaleString()}</span></div>)}</div></div></section>;
+}
+
+function WorkspacePane({ workspace, role, onSaved }: { workspace: { name: string; logoUrl: string; brandColor: string; customDomain: string }; role: string; onSaved: (workspace: { name: string; logoUrl: string; brandColor: string; customDomain: string }) => void }) {
+  const [form, setForm] = useState(workspace);
+  const [saving, setSaving] = useState(false);
+  const { notify } = useToast();
+  useEffect(() => setForm(workspace), [workspace]);
+  const save = async () => {
+    setSaving(true);
+    try { const result = await api<{ workspace: typeof form }>("/api/workspace", { method: "PATCH", body: JSON.stringify(form) }); onSaved(result.workspace); notify("Workspace branding saved", "success"); } catch (error) { notify(error instanceof Error ? error.message : "Branding save failed", "error"); } finally { setSaving(false); }
+  };
+  return <section className="card" style={{ padding: 18 }}><div className="row"><div className="grow"><div className="section-label">Workspace branding</div><div className="small muted">Role: {role}. Custom domain requires DNS and TLS configuration in production.</div></div><span className="badge blue">White-label ready</span></div><div className="row" style={{ gap: 10, alignItems: "end", marginTop: 12 }}><div className="field grow"><label>Workspace name</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div><div className="field"><label>Brand color</label><input className="input" type="color" value={form.brandColor} onChange={(e) => setForm({ ...form, brandColor: e.target.value })} /></div></div><div className="row" style={{ gap: 10 }}><div className="field grow"><label>Logo URL</label><input className="input" value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} placeholder="https://cdn.example.com/logo.png" /></div><div className="field grow"><label>Custom domain</label><input className="input" value={form.customDomain} onChange={(e) => setForm({ ...form, customDomain: e.target.value })} placeholder="app.example.com" /></div></div><button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Saving..." : "Save branding"}</button></section>;
 }

@@ -15,10 +15,12 @@ export async function checkSuppression(
 ): Promise<SuppressionCheck> {
   if (!email) return { allowed: false, reason: "no_email" };
 
-  const suppressed = await prisma.suppression.findUnique({
-    where: { userId_email: { userId, email: email.toLowerCase() } },
-  });
-  if (suppressed) return { allowed: false, reason: "suppressed" };
+  const normalized = email.toLowerCase().trim();
+  const [suppressed, globallySuppressed] = await Promise.all([
+    prisma.suppression.findUnique({ where: { userId_email: { userId, email: normalized } } }),
+    prisma.globalSuppression.findUnique({ where: { email: normalized } }),
+  ]);
+  if (suppressed || globallySuppressed) return { allowed: false, reason: "suppressed" };
 
   if (leadId) {
     const lead = await prisma.lead.findFirst({ where: { id: leadId, userId } });

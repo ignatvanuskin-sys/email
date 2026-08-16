@@ -3,15 +3,20 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
+import Image from "next/image";
 
 const LINKS = [
   { href: "/", label: "Главная", icon: "⌂" },
+  { href: "/analytics", label: "Analytics", icon: "◒" },
   { href: "/leads", label: "Лиды", icon: "◈" },
   { href: "/campaigns", label: "Campaigns", icon: "📣" },
+  { href: "/activation", label: "Launch wizard", icon: "✦" },
   { href: "/sequences", label: "Sequences", icon: "⇉" },
   { href: "/templates", label: "Templates", icon: "📝" },
   { href: "/segments", label: "Segments", icon: "🎯" },
   { href: "/follow-ups", label: "Повторные контакты", icon: "⏰" },
+  { href: "/inbox", label: "Reply inbox", icon: "✉" },
+  { href: "/deliverability", label: "Доставляемость", icon: "◇" },
   { href: "/settings", label: "Настройки", icon: "⚙" },
 ];
 
@@ -19,10 +24,12 @@ export function Nav({
   email,
   paused,
   onTogglePause,
+  branding,
 }: {
   email: string;
   paused: boolean;
   onTogglePause: () => void;
+  branding?: { name: string; logoUrl: string | null; brandColor: string } | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,8 +43,8 @@ export function Nav({
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <span className="mark" aria-hidden />
-        <span>ClipReach</span>
+         {branding?.logoUrl ? <Image src={branding.logoUrl} alt="" width={24} height={24} unoptimized style={{ width: 24, height: 24, objectFit: "contain", borderRadius: 6 }} /> : <span className="mark" aria-hidden />}
+         <span>{branding?.name || "ClipReach"}</span>
       </div>
       <nav aria-label="Main navigation">
         {LINKS.map((l) => (

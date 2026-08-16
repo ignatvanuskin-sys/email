@@ -10,6 +10,7 @@ export default function NewSequencePage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [preset, setPreset] = useState("");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -18,7 +19,7 @@ export default function NewSequencePage() {
     try {
       const res = await api<{ sequence: { id: string } }>("/api/sequences", {
         method: "POST",
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...(preset ? { preset } : {}) }),
       });
       router.push(`/sequences/${res.sequence.id}`);
     } catch (err) {
@@ -42,6 +43,16 @@ export default function NewSequencePage() {
         <div className="field">
           <label>Name *</label>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Welcome sequence" />
+        </div>
+        <div className="field">
+          <label>Start from preset</label>
+          <select className="select" value={preset} onChange={(e) => setPreset(e.target.value)}>
+            <option value="">Blank sequence</option>
+            <option value="Welcome">Welcome</option>
+            <option value="AbandonedCart">Abandoned cart</option>
+            <option value="Reactivation">Reactivation</option>
+          </select>
+          <div className="small muted">Presets create trigger and starter steps automatically.</div>
         </div>
 
         {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}

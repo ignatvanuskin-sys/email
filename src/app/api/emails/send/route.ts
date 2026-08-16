@@ -6,11 +6,14 @@ import { checkSuppression } from "@/lib/suppression";
 import { sendEmail } from "@/lib/emailSender";
 import { DEFAULT_FOLLOWUP_DELAY_DAYS, EMAIL_STATUS, LEAD_STATUS } from "@/lib/status";
 import { daysFromNow } from "@/lib/utils";
+import { consumeUsage } from "@/lib/usage";
 
 export async function POST(req: Request) {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
+    const usage = await consumeUsage(user.id, "emails");
+    if (!usage.allowed) return badRequest(`Email usage limit reached for this month (${usage.limit})`);
 
     const body = await readJson(req);
     const d = emailSendSchema.parse(body);

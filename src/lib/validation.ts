@@ -85,7 +85,7 @@ export const suppressionCreateSchema = z.object({
 
 export const providerConnectSchema = z.object({
   type: z.enum(["email", "ai"]),
-  platform: z.enum(["SMTP", "GmailOAuth", "Anthropic", "OpenAI", "OpenRouter"]),
+  platform: z.enum(["SMTP", "GmailOAuth", "Anthropic", "OpenAI", "OpenRouter", "Telegram"]),
   displayName: z.string().trim().max(120).optional().default(""),
   // Credentials as a JSON string of provider-specific fields.
   config: z.string().max(20000),

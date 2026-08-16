@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, ok, readJson, unauthorized, badRequest } from "@/lib/api";
 import { mapAndValidateRows, type ImportMapping, type ImportRow, MAX_IMPORT_ROWS } from "@/lib/csv";
 import { z } from "zod";
+import { inspectEmail } from "@/lib/emailHygiene";
+import { consumeUsage } from "@/lib/usage";
 
 const schema = z.object({
   records: z.array(z.record(z.string(), z.string())).max(MAX_IMPORT_ROWS),
@@ -15,13 +17,22 @@ export async function POST(req: Request) {
     if (!user) return unauthorized();
     const data = schema.parse(await readJson(req));
     if (!data.mappings.email) return badRequest("Map a source column to Email before importing");
-    const existing = new Set((await prisma.lead.findMany({ where: { userId: user.id, email: { not: null } }, select: { email: true } })).map((lead) => lead.email!.toLowerCase()));
-    const rows = mapAndValidateRows(data.records as ImportRow[], data.mappings as ImportMapping, existing);
+    const [leadEmails, localSuppressions, globalSuppressions] = await Promise.all([
+      prisma.lead.findMany({ where: { userId: user.id, email: { not: null } }, select: { email: true } }),
+      prisma.suppression.findMany({ where: { userId: user.id }, select: { email: true } }),
+      prisma.globalSuppression.findMany({ select: { email: true } }),
+    ]);
+    const existing = new Set(leadEmails.map((lead) => lead.email!.toLowerCase()));
+    const suppressed = new Set([...localSuppressions, ...globalSuppressions].map((entry) => entry.email.toLowerCase()));
+    const rows = mapAndValidateRows(data.records as ImportRow[], data.mappings as ImportMapping, existing, suppressed);
     const valid = rows.filter((row) => row.state === "valid");
+    const usage = await consumeUsage(user.id, "contacts", valid.length);
+    if (!usage.allowed) return badRequest(`Contact limit reached for this month (${usage.limit})`);
     let imported = 0;
     await prisma.$transaction(async (tx) => {
       for (const row of valid) {
         try {
+          const hygiene = inspectEmail(row.email!);
           const lead = await tx.lead.create({ data: {
             userId: user.id,
             email: row.email!,
@@ -32,6 +43,11 @@ export async function POST(req: Request) {
             niche: row.values.niche || null,
             followersCount: parseCount(row.values.followersCount),
             status: "New",
+            emailQuality: hygiene.quality,
+            emailRisk: hygiene.reasons.join(", ") || null,
+            emailCheckedAt: new Date(),
+            isDisposable: hygiene.disposable,
+            isRoleBased: hygiene.roleBased,
           } });
           await tx.activity.create({ data: { userId: user.id, leadId: lead.id, type: "LeadImported", payload: "{}" } });
           imported++;

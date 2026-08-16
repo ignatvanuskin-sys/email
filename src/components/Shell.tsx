@@ -17,6 +17,7 @@ export function Shell({
 }) {
   const [paused, setPaused] = useState(initialPaused);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [branding, setBranding] = useState<{ name: string; logoUrl: string | null; brandColor: string } | null>(null);
   const { notify } = useToast();
 
   const togglePause = useCallback(async () => {
@@ -41,9 +42,17 @@ export function Shell({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    api<{ workspace: { name: string; logoUrl: string | null; brandColor: string } }>("/api/workspace").then((result) => {
+      setBranding(result.workspace);
+      document.title = result.workspace.name || "ClipReach";
+      document.documentElement.style.setProperty("--accent", result.workspace.brandColor);
+    }).catch(() => {});
+  }, []);
+
   return (
     <div className="app-shell">
-      <Nav email={email} paused={paused} onTogglePause={togglePause} />
+      <Nav email={email} paused={paused} onTogglePause={togglePause} branding={branding} />
       <main className="main">{children}</main>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} paused={paused} onTogglePause={togglePause} />
     </div>

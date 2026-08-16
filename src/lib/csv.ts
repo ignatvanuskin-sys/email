@@ -1,5 +1,6 @@
 import { parse } from "csv-parse/sync";
 import * as XLSX from "xlsx";
+import { inspectEmail, normalizeEmailAddress } from "./emailHygiene";
 
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
 export const MAX_IMPORT_ROWS = 5_000;
@@ -23,6 +24,8 @@ export type ImportPreviewRow = {
   isValid: boolean;
   duplicate: boolean;
   reasons: string[];
+  disposable: boolean;
+  roleBased: boolean;
 };
 
 export function parseCsv(text: string): ImportRow[] {
@@ -73,11 +76,11 @@ export function hasFormulaInjection(value: string): boolean {
 }
 
 export function normalizeEmail(value: string): string {
-  return value.trim().toLowerCase();
+  return normalizeEmailAddress(value);
 }
 
 export function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 320;
+  return inspectEmail(value).valid;
 }
 
 const ALIASES: Record<string, string[]> = {
@@ -98,28 +101,33 @@ export function autoMapColumns(headers: string[]): ImportMapping {
   }));
 }
 
-export function mapAndValidateRows(records: ImportRow[], mapping: ImportMapping, existingEmails: Set<string>): ImportPreviewRow[] {
+export function mapAndValidateRows(records: ImportRow[], mapping: ImportMapping, existingEmails: Set<string>, suppressedEmails: Set<string> = new Set()): ImportPreviewRow[] {
   const seen = new Set<string>();
   return records.map((record, index) => {
     const values: Record<string, string> = {};
     for (const field of LEAD_IMPORT_FIELDS) values[field.key] = mapping[field.key] && record[mapping[field.key]] != null ? sanitizeCell(record[mapping[field.key]] ?? "") : "";
     const email = normalizeEmail(values.email ?? "");
+    const hygiene = inspectEmail(email);
     values.email = email;
     const reasons: string[] = [];
-    const badEmail = !email || !isValidEmail(email);
+    const badEmail = !email || !hygiene.valid;
     if (!email) reasons.push("Email is required");
     else if (!isValidEmail(email)) reasons.push("Invalid email");
     const duplicate = Boolean(email && (existingEmails.has(email) || seen.has(email)));
     if (duplicate) reasons.push(existingEmails.has(email) ? "Duplicate (already in workspace)" : "Duplicate (in file)");
     if (email) seen.add(email);
+    const suppressed = Boolean(email && suppressedEmails.has(email));
+    if (suppressed) reasons.push("Email is suppressed");
+    if (hygiene.disposable) reasons.push("Disposable email provider");
+    if (hygiene.roleBased) reasons.push("Role-based address");
     // Name is desirable but never blocks import (spec: name is optional on the Lead).
     if (!values.name) reasons.push("Missing name");
     // Reject any spreadsheet-formula / CSV-injection payload on any mapped field.
     const injected = LEAD_IMPORT_FIELDS.some((field) => mapping[field.key] && hasFormulaInjection(values[field.key]));
     if (injected) reasons.push("Potential CSV formula injection");
 
-    const state = injected ? "invalid" : duplicate ? "duplicate" : badEmail ? "invalid" : "valid";
-    return { index, values, email: email || undefined, state, isValid: state === "valid", duplicate, reasons };
+    const state = injected || badEmail || suppressed || hygiene.disposable ? "invalid" : duplicate ? "duplicate" : "valid";
+    return { index, values, email: email || undefined, state, isValid: state === "valid", duplicate, reasons, disposable: hygiene.disposable, roleBased: hygiene.roleBased };
   });
 }
 

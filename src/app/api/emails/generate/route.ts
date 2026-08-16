@@ -1,13 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { getApiUser, handleError, notFound, ok, readJson, unauthorized } from "@/lib/api";
+import { getApiUser, handleError, notFound, ok, readJson, unauthorized, badRequest } from "@/lib/api";
 import { emailGenerateSchema } from "@/lib/validation";
 import { generateEmail, getActiveAiClient } from "@/lib/ai";
 import { applyTemplate } from "@/lib/emailSender";
+import { consumeUsage } from "@/lib/usage";
 
 export async function POST(req: Request) {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
+    const usage = await consumeUsage(user.id, "aiGenerations");
+    if (!usage.allowed) return badRequest(`AI generation limit reached for this month (${usage.limit})`);
     const body = await readJson(req);
     const d = emailGenerateSchema.parse(body);
 

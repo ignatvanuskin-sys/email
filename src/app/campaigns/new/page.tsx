@@ -30,6 +30,11 @@ export default function NewCampaignPage() {
   const [loading, setLoading] = useState(false);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState("");
+  const [aiGoal, setAiGoal] = useState("");
+  const [aiTone, setAiTone] = useState("warm and concise");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [subjects, setSubjects] = useState<Array<{ text: string; angle: string }>>([]);
+  const [draft, setDraft] = useState({ subject: "", preheader: "", body: "" });
 
   const loadOptions = useCallback(async () => {
     try {
@@ -80,6 +85,25 @@ export default function NewCampaignPage() {
     }
   };
 
+  const generateDraft = async () => {
+    setAiLoading(true);
+    try {
+      const result = await api<{ draft: { subject: string; body: string; preheader: string } }>("/api/ai/campaign-draft", { method: "POST", body: JSON.stringify({ goal: aiGoal, tone: aiTone, audience: form.description, offer: form.description }) });
+      setDraft(result.draft);
+      notify("Draft generated. Review it before using it in a template.", "success");
+    } catch (e) { notify(e instanceof Error ? e.message : "AI generation failed", "error"); }
+    finally { setAiLoading(false); }
+  };
+
+  const generateSubjects = async () => {
+    setAiLoading(true);
+    try {
+      const result = await api<{ subjects: Array<{ text: string; angle: string }> }>("/api/ai/subjects", { method: "POST", body: JSON.stringify({ goal: aiGoal, tone: aiTone, audience: form.description, offer: form.description }) });
+      setSubjects(result.subjects);
+    } catch (e) { notify(e instanceof Error ? e.message : "Subject generation failed", "error"); }
+    finally { setAiLoading(false); }
+  };
+
   return (
     <div>
       <div className="page-head">
@@ -99,6 +123,14 @@ export default function NewCampaignPage() {
           <div className="field">
             <label>Description</label>
             <textarea className="input" rows={3} value={form.description} onChange={set("description")} placeholder="Describe the goal of this campaign" />
+          </div>
+          <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
+            <div className="section-label">AI Campaign Copilot</div>
+            <div className="field"><label>Campaign goal</label><textarea className="input" rows={2} value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} placeholder="Announce the new product plan to active customers" /></div>
+            <div className="field"><label>Tone of voice</label><input className="input" value={aiTone} onChange={(e) => setAiTone(e.target.value)} /></div>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}><button type="button" className="btn" onClick={generateDraft} disabled={aiLoading || aiGoal.length < 3}>{aiLoading ? "Generating..." : "Generate draft"}</button><button type="button" className="btn" onClick={generateSubjects} disabled={aiLoading || aiGoal.length < 3}>Generate 5–10 subjects</button></div>
+            {subjects.length > 0 && <div className="stack" style={{ marginTop: 12, gap: 6 }}>{subjects.map((subject) => <button type="button" className="btn" key={subject.text} style={{ textAlign: "left" }} onClick={() => setForm((current) => ({ ...current, description: `${current.description}\nSubject: ${subject.text}` }))}><strong>{subject.text}</strong><span className="small muted"> · {subject.angle}</span></button>)}</div>}
+            {draft.body && <div className="stack" style={{ marginTop: 12, gap: 8 }}><div className="field"><label>Generated subject</label><input className="input" value={draft.subject} onChange={(e) => setDraft((current) => ({ ...current, subject: e.target.value }))} /></div><div className="field"><label>Generated preheader</label><input className="input" value={draft.preheader} onChange={(e) => setDraft((current) => ({ ...current, preheader: e.target.value }))} /></div><div className="field"><label>Generated body</label><textarea className="input" rows={6} value={draft.body} onChange={(e) => setDraft((current) => ({ ...current, body: e.target.value }))} /></div><div className="small muted">The draft is not sent automatically. Save it as a template to use it in a campaign.</div></div>}
           </div>
           <div className="field">
             <label>Daily limit</label>

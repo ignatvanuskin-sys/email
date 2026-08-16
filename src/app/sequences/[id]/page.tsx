@@ -8,6 +8,7 @@ import { useToast } from "@/components/Toast";
 import ShinyText from "@/components/react-bits/ShinyText";
 import SpotlightCard from "@/components/react-bits/SpotlightCard";
 import FadeContent from "@/components/react-bits/FadeContent";
+import { JourneyCanvas } from "./JourneyCanvas";
 
 type Step = {
   id: string;
@@ -23,6 +24,12 @@ type SequenceData = {
     id: string;
     name: string;
     createdAt: string;
+    triggerType?: string;
+    isActive?: boolean;
+    channel?: string;
+    conditionJson?: string | null;
+    goalEventType?: string | null;
+    exitEventType?: string | null;
   };
   steps: Step[];
 };
@@ -37,12 +44,25 @@ export default function SequenceDetailPage() {
   const [saving, setSaving] = useState(false);
   const [editingStep, setEditingStep] = useState<string | null>(null);
   const [stepForm, setStepForm] = useState({ delayDays: 1, subject: "", body: "" });
+  const [triggerType, setTriggerType] = useState("Manual");
+  const [isActive, setIsActive] = useState(false);
+  const [channel, setChannel] = useState("email");
+  const [conditionJson, setConditionJson] = useState("");
+  const [goalEventType, setGoalEventType] = useState("");
+  const [exitEventType, setExitEventType] = useState("");
+  const [aiAutomationDescription, setAiAutomationDescription] = useState("");
 
   const load = useCallback(async () => {
     try {
       const d = await api<SequenceData>(`/api/sequences/${params.id}`);
       setData(d);
       setName(d.sequence.name);
+      setTriggerType(d.sequence.triggerType ?? "Manual");
+      setIsActive(Boolean(d.sequence.isActive));
+      setChannel(d.sequence.channel ?? "email");
+      setConditionJson(d.sequence.conditionJson ?? "");
+      setGoalEventType(d.sequence.goalEventType ?? "");
+      setExitEventType(d.sequence.exitEventType ?? "");
       setError("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -67,6 +87,16 @@ export default function SequenceDetailPage() {
       setSaving(false);
     }
   };
+
+  const saveTrigger = async () => {
+    try {
+      await api(`/api/sequences/${params.id}`, { method: "PATCH", body: JSON.stringify({ triggerType, isActive }) });
+      notify(isActive ? "Journey activated" : "Journey saved", "success");
+    } catch (e) { notify(e instanceof Error ? e.message : "Update failed", "error"); }
+  };
+
+  const saveAutomation = async () => { try { await api(`/api/sequences/${params.id}/automation`, { method: "PATCH", body: JSON.stringify({ channel, conditionJson: conditionJson || null, goalEventType: goalEventType || null, exitEventType: exitEventType || null }) }); notify("Automation rules saved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Automation save failed", "error"); } };
+  const generateAutomation = async () => { try { const result = await api<{ automation: { conditions: unknown[]; goalEventType: string | null; exitEventType: string | null } }>("/api/ai/automation", { method: "POST", body: JSON.stringify({ description: aiAutomationDescription }) }); setConditionJson(JSON.stringify(result.automation.conditions)); setGoalEventType(result.automation.goalEventType ?? ""); setExitEventType(result.automation.exitEventType ?? ""); notify("Automation rules generated. Review before saving.", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Automation generation failed", "error"); } };
 
   const addStep = async () => {
     try {
@@ -150,6 +180,13 @@ export default function SequenceDetailPage() {
 
       <SpotlightCard>
         <div className="card" style={{ padding: 18 }}>
+          <div className="row" style={{ marginBottom: 18, alignItems: "end" }}>
+            <div className="field grow" style={{ margin: 0 }}><label>Event trigger</label><input className="input" value={triggerType} onChange={(e) => setTriggerType(e.target.value)} placeholder="contact.created" /></div>
+            <div className="field" style={{ margin: 0 }}><label>Channel</label><select className="select" value={channel} onChange={(e) => setChannel(e.target.value)}><option value="email">Email</option><option value="telegram">Telegram</option></select></div>
+            <label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Active</label>
+            <button className="btn btn-primary" onClick={saveTrigger}>Save trigger</button>
+          </div>
+          <div className="card" style={{ padding: 12, marginBottom: 16, background: "var(--surface-2)" }}><div className="section-label">Conditions and exits</div><div className="row" style={{ gap: 8 }}><input className="input grow" value={goalEventType} onChange={(e) => setGoalEventType(e.target.value)} placeholder="Goal event, e.g. order.paid" /><input className="input grow" value={exitEventType} onChange={(e) => setExitEventType(e.target.value)} placeholder="Exit event, e.g. unsubscribe" /></div><textarea className="input" rows={3} value={conditionJson} onChange={(e) => setConditionJson(e.target.value)} placeholder='[{"field":"plan","operator":"equals","value":"pro"}]' style={{ marginTop: 8 }} /><div className="row" style={{ gap: 8, marginTop: 8 }}><input className="input grow" value={aiAutomationDescription} onChange={(e) => setAiAutomationDescription(e.target.value)} placeholder="Describe the automation in plain language" /><button className="btn btn-sm" onClick={generateAutomation} disabled={aiAutomationDescription.length < 5}>Generate with AI</button><button className="btn btn-sm btn-primary" onClick={saveAutomation}>Save automation rules</button></div></div>
           <div className="row" style={{ marginBottom: 16 }}>
             <div className="section-label" style={{ margin: 0 }}>Steps</div>
             <button className="btn btn-sm btn-primary" onClick={addStep}>+ Add Step</button>
@@ -209,6 +246,7 @@ export default function SequenceDetailPage() {
           )}
         </div>
       </SpotlightCard>
+      <JourneyCanvas sequenceId={params.id} />
     </div>
   );
 }

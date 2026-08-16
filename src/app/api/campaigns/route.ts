@@ -9,6 +9,9 @@ const createSchema = z.object({
   templateId: z.string().optional().nullable().default(null),
   sequenceId: z.string().optional().nullable().default(null),
   segmentId: z.string().optional().nullable().default(null),
+  frequencyCap: z.number().int().min(1).max(100).optional().nullable().default(null),
+  frequencyWindowDays: z.number().int().min(1).max(90).optional().nullable().default(null),
+  sendTimeOptimization: z.boolean().optional().default(false),
 });
 
 export async function GET() {
@@ -43,6 +46,9 @@ export async function POST(req: Request) {
         templateId: d.templateId,
         sequenceId: d.sequenceId,
         segmentId: d.segmentId,
+        frequencyCap: d.frequencyCap,
+        frequencyWindowDays: d.frequencyWindowDays,
+        sendTimeOptimization: d.sendTimeOptimization,
       },
     });
     await prisma.activity.create({
