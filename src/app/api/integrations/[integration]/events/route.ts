@@ -5,8 +5,8 @@ import { createEvent } from "@/lib/events";
 import { normalizeCommerceEvent, verifyCommerceSignature, verifyShopifyHmac } from "@/lib/commerce";
 import { consumeRateLimit } from "@/lib/rateLimit";
 
-export async function POST(req: Request, { params }: { params: Promise<{ integrationToken: string }> }) {
-  const { integrationToken } = await params;
+export async function POST(req: Request, { params }: { params: Promise<{ integration: string }> }) {
+  const { integration: integrationToken } = await params;
   const integration = await prisma.integrationConnection.findUnique({ where: { publicToken: integrationToken } });
   if (!integration) return NextResponse.json({ error: "Integration not found" }, { status: 404 });
   const rate = await consumeRateLimit(`commerce:${integration.id}`, 600, 60_000);
@@ -28,3 +28,4 @@ export async function POST(req: Request, { params }: { params: Promise<{ integra
     return NextResponse.json({ ok: true, type: event.type, created: result.created, enrollments: result.enrollments });
   } catch (error) { await prisma.integrationConnection.update({ where: { id: integration.id }, data: { lastError: error instanceof Error ? error.message.slice(0, 1000) : "Invalid payload" } }); return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid payload" }, { status: 400 }); }
 }
+
