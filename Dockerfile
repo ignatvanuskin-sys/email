@@ -10,6 +10,7 @@ COPY . .
 RUN cp prisma/schema.postgres.prisma prisma/schema.prisma
 RUN npx prisma generate
 RUN npm run build
+RUN mkdir -p /app/public
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
