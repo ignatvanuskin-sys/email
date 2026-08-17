@@ -5,9 +5,9 @@ import { createEvent } from "@/lib/events";
 import { normalizeCommerceEvent, verifyCommerceSignature, verifyShopifyHmac } from "@/lib/commerce";
 import { consumeRateLimit } from "@/lib/rateLimit";
 
-export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  const integration = await prisma.integrationConnection.findUnique({ where: { publicToken: token } });
+export async function POST(req: Request, { params }: { params: Promise<{ integrationToken: string }> }) {
+  const { integrationToken } = await params;
+  const integration = await prisma.integrationConnection.findUnique({ where: { publicToken: integrationToken } });
   if (!integration) return NextResponse.json({ error: "Integration not found" }, { status: 404 });
   const rate = await consumeRateLimit(`commerce:${integration.id}`, 600, 60_000);
   if (!rate.allowed) return NextResponse.json({ error: "Rate limit exceeded", resetAt: rate.resetAt.toISOString() }, { status: 429 });
