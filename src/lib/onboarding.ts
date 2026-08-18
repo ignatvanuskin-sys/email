@@ -1,12 +1,12 @@
 import { prisma } from "./prisma";
 
 export const ONBOARDING_STEPS = [
-  { id: "profile", label: "Complete your business profile", href: "/settings" },
-  { id: "leads", label: "Add your first lead", href: "/leads/new" },
-  { id: "template", label: "Create an email template", href: "/templates/new" },
-  { id: "provider", label: "Connect an email provider", href: "/settings" },
-  { id: "domain", label: "Verify a sending domain", href: "/deliverability" },
-  { id: "campaign", label: "Create a campaign", href: "/campaigns/new" },
+  { id: "profile", label: "Заполнить профиль бизнеса", href: "/settings" },
+  { id: "leads", label: "Добавить первого лида", href: "/leads/new" },
+  { id: "template", label: "Создать шаблон письма", href: "/templates/new" },
+  { id: "provider", label: "Подключить почтовый сервис", href: "/settings" },
+  { id: "domain", label: "Подтвердить домен отправки", href: "/deliverability" },
+  { id: "campaign", label: "Создать кампанию", href: "/campaigns/new" },
 ] as const;
 
 export async function getOnboardingProgress(userId: string) {

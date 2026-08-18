@@ -220,7 +220,7 @@ export default function LeadsPage() {
             <span className="small muted">{filtered.length} lead(s) · page {safePage}/{pages}</span>
             <div className="row">
               <button className="btn btn-sm" disabled={safePage <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-              <button className="btn btn-sm" disabled={safePage >= pages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+              <button className="btn btn-sm" disabled={safePage >= pages} onClick={() => setPage((p) => p + 1)}>Далее →</button>
             </div>
           </div>
         </div>

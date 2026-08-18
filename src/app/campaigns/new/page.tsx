@@ -133,7 +133,7 @@ export default function NewCampaignPage() {
             {draft.body && <div className="stack" style={{ marginTop: 12, gap: 8 }}><div className="field"><label>Generated subject</label><input className="input" value={draft.subject} onChange={(e) => setDraft((current) => ({ ...current, subject: e.target.value }))} /></div><div className="field"><label>Generated preheader</label><input className="input" value={draft.preheader} onChange={(e) => setDraft((current) => ({ ...current, preheader: e.target.value }))} /></div><div className="field"><label>Generated body</label><textarea className="input" rows={6} value={draft.body} onChange={(e) => setDraft((current) => ({ ...current, body: e.target.value }))} /></div><div className="small muted">The draft is not sent automatically. Save it as a template to use it in a campaign.</div></div>}
           </div>
           <div className="field">
-            <label>Daily limit</label>
+            <label>Дневной лимит</label>
             <input className="input" type="number" min={1} value={form.dailyLimit} onChange={set("dailyLimit")} />
           </div>
 
@@ -162,7 +162,7 @@ export default function NewCampaignPage() {
           {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
 
           <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading || loadingOptions}>
-            {loading ? "Creating..." : "Create campaign"}
+            {loading ? "Creating..." : "Создать кампанию"}
           </button>
         </form>
       </FadeContent>

@@ -305,7 +305,7 @@ export default function CampaignDetailPage() {
               </div>
               <div className="divider" />
               <div className="row" style={{ gap: 8, fontSize: 14, color: "var(--muted)" }}>
-                <span>Daily limit: {campaign.dailyLimit}</span>
+                <span>Дневной лимит: {campaign.dailyLimit}</span>
                 <span aria-hidden>|</span>
                 <span>Created: {formatDate(campaign.createdAt)}</span>
               </div>
@@ -377,7 +377,7 @@ export default function CampaignDetailPage() {
         <section className="card" style={{ padding: 18, marginBottom: 20 }}>
           <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Campaign intelligence</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Loading..." : "Refresh"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>AI insights</button></div>
           {!analytics ? <div className="small muted">Load analytics after sending begins.</div> : <>
-            <div className="row" style={{ gap: 18, flexWrap: "wrap" }}><Metric label="Open rate" value={`${analytics.rates.openRate}%`} /><Metric label="Click rate" value={`${analytics.rates.clickRate}%`} /><Metric label="Reply rate" value={`${analytics.rates.replyRate}%`} /><Metric label="Bounce rate" value={`${analytics.rates.bounceRate}%`} /></div>
+            <div className="row" style={{ gap: 18, flexWrap: "wrap" }}><Metric label="Открытия" value={`${analytics.rates.openRate}%`} /><Metric label="Переходы" value={`${analytics.rates.clickRate}%`} /><Metric label="Ответы" value={`${analytics.rates.replyRate}%`} /><Metric label="Возвраты" value={`${analytics.rates.bounceRate}%`} /></div>
             <div className="divider" />
             <div className="section-label">Click heatmap</div>
             {analytics.heatmap.length === 0 ? <div className="small muted">No click events yet. Link rewriting will be enabled with the HTML editor.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} clicks</span><span className="muted">{item.uniqueEmails} unique</span></div>)}</div>}
@@ -394,7 +394,7 @@ export default function CampaignDetailPage() {
               <div className="row" style={{ marginBottom: 8 }}>
                 <div className="section-label" style={{ marginBottom: 0 }}>A/B Variants</div>
                 <span className="grow" />
-                <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>+ Add variant</button>
+                <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>+ Добавить вариант</button>
               </div>
               <div className="card" style={{ padding: 0 }}>
                 {variants.map((v) => (
@@ -429,7 +429,7 @@ export default function CampaignDetailPage() {
                 <textarea className="input" rows={6} value={variantForm.body} onChange={(e) => setVariantForm({ ...variantForm, body: e.target.value })} placeholder="Different email body" />
               </div>
               <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                <button className="btn btn-ghost" onClick={() => setVariantOpen(false)}>Cancel</button>
+                <button className="btn btn-ghost" onClick={() => setVariantOpen(false)}>Отмена</button>
                 <button className="btn btn-primary" disabled={!variantForm.subject.trim() || !variantForm.body.trim()} onClick={saveVariant}>Save variant</button>
               </div>
             </div>

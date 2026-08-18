@@ -95,7 +95,7 @@ function FollowUpList({
               </span>
               {!muted && (
                 <div className="row">
-                  <button className="btn btn-sm btn-primary" onClick={() => onAct(f.id, "complete")}>Done</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => onAct(f.id, "complete")}>Выполнено</button>
                   <button className="btn btn-sm" onClick={() => onAct(f.id, "skip")}>Skip</button>
                 </div>
               )}
