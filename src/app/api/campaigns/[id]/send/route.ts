@@ -30,7 +30,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     });
 
     let queued = 0;
-    for (const cl of pendingLeads) {
+    for (const candidate of pendingLeads) {
+      const claimed = await prisma.campaignLead.updateMany({ where: { id: candidate.id, status: "Pending" }, data: { status: "Queued" } });
+      if (claimed.count !== 1) continue;
+      const cl = await prisma.campaignLead.findUnique({ where: { id: candidate.id }, include: { lead: true } });
+      if (!cl) continue;
       const lead = cl.lead;
       if (!lead.email) {
         await prisma.campaignLead.update({ where: { id: cl.id }, data: { status: "Skipped" } });
@@ -84,22 +88,23 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       };
       const finalSubject = applyTemplate(subject, vars);
       const finalBody = applyTemplate(body, vars);
-      const emailRecord = await prisma.emailMessage.create({
-        data: {
-          userId: user.id,
-          leadId: lead.id,
-          campaignId: id,
-          subject: finalSubject,
-          body: finalBody,
-          status: "Queued",
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        const emailRecord = await tx.emailMessage.create({
+          data: { userId: user.id, leadId: lead.id, campaignId: id, subject: finalSubject, body: finalBody, status: "Queued" },
+        });
+        const trackingToken = createTrackingToken(user.id, emailRecord.id);
+        await tx.emailMessage.update({ where: { id: emailRecord.id }, data: { trackingToken } });
+        const logicalKey = `campaign:${id}:lead:${lead.id}`;
+        try {
+          await tx.sendJob.create({ data: { userId: user.id, type: "campaign", logicalKey, payload: JSON.stringify({ campaignId: id, campaignLeadId: cl.id, leadId: lead.id, emailId: emailRecord.id, subject: finalSubject, body: finalBody }), status: "Queued" } });
+          return true;
+        } catch (error) {
+          if (error instanceof Error && error.message.includes("Unique constraint")) return false;
+          throw error;
+        }
       });
-
-      const trackingToken = createTrackingToken(user.id, emailRecord.id);
-      await prisma.emailMessage.update({ where: { id: emailRecord.id }, data: { trackingToken } });
-
-      await enqueueSend(user.id, "campaign", { campaignId: id, campaignLeadId: cl.id, leadId: lead.id, emailId: emailRecord.id, subject: finalSubject, body: finalBody });
-      queued++;
+      if (result) queued++;
+      else await prisma.campaignLead.updateMany({ where: { id: cl.id, status: "Queued" }, data: { status: "Queued" } });
     }
 
     const remainingCount = await prisma.campaignLead.count({ where: { campaignId: id, status: "Pending" } });

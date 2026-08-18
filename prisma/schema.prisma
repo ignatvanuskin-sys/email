@@ -192,6 +192,7 @@ model SendJob {
   id                String    @id @default(cuid())
   userId            String
   type              String    @default("campaign")
+  logicalKey        String   @default("")
   status            String    @default("Queued")
   payload           String    @default("{}")
   attempts          Int       @default(0)
@@ -206,6 +207,7 @@ model SendJob {
 
   @@index([status, nextRunAt, lockUntil])
   @@index([userId, createdAt])
+  @@unique([userId, logicalKey])
 }
 
 model SendingDomain {

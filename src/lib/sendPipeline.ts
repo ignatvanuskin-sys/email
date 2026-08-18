@@ -28,8 +28,17 @@ export type JourneySendPayload = {
 
 export type SendPayload = Partial<CampaignSendPayload> & Partial<JourneySendPayload> & { emailId?: string; telegramChatId?: string; channel?: string };
 
-export async function enqueueSend(userId: string, type: "campaign" | "journey", payload: SendPayload): Promise<void> {
-  await prisma.sendJob.create({ data: { userId, type, payload: JSON.stringify(payload), status: "Queued" } });
+export async function enqueueSend(userId: string, type: "campaign" | "journey", payload: SendPayload): Promise<boolean> {
+  const logicalKey = type === "campaign" && payload.campaignId && payload.leadId
+    ? `campaign:${payload.campaignId}:lead:${payload.leadId}`
+    : `journey:${payload.enrollmentId ?? payload.leadId}:${payload.stepId ?? "send"}`;
+  try {
+    await prisma.sendJob.create({ data: { userId, type, logicalKey, payload: JSON.stringify(payload), status: "Queued" } });
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Unique constraint")) return false;
+    throw error;
+  }
 }
 
 export async function processSendJobs(limit = 25): Promise<{ processed: number; sent: number; failed: number }> {
@@ -76,6 +85,11 @@ export async function processSendJobs(limit = 25): Promise<{ processed: number; 
         ? await prisma.emailMessage.findFirst({ where: { id: payload.emailId, userId: job.userId, leadId: lead.id } })
         : await prisma.emailMessage.create({ data: { userId: job.userId, leadId: lead.id, campaignId: payload.campaignId || null, sequenceStepId: payload.stepId || null, subject, body, status: "Queued" } });
       if (!emailRecord) throw new Error("Queued email record not found");
+      if (emailRecord.status === EMAIL_STATUS.SENT && emailRecord.providerMessageId) {
+        await completeJob(job, payload, emailRecord.providerMessageId);
+        sent++;
+        continue;
+      }
       const trackingToken = createTrackingToken(job.userId, emailRecord.id);
       const token = createUnsubscribeToken(job.userId, emailRecord.id);
       const appUrl = env.APP_URL;
