@@ -106,33 +106,29 @@ describe("campaign concurrency: atomic claim", () => {
     const logicalKey = `campaign:${campaignId}:lead:${leadIds[0]}`;
 
     let create1Result: string;
-    let create1Error: any = null;
     try {
       await prisma.sendJob.create({
         data: { userId, type: "campaign", logicalKey, payload: "{}", status: "Queued" },
       });
       create1Result = "created";
-    } catch (e) {
-      create1Error = e;
+    } catch (e: any) {
       const isDup =
-        (e?.code === "P2002") ||
+        e?.code === "P2002" ||
         (typeof e?.message === "string" && (e.message.includes("Unique constraint") || e.message.includes("UNIQUE constraint")));
-      create1Result = `error:${isDup ? "duplicate" : `other:${e?.code ?? e?.message?.slice(0, 80)}`}`;
+      create1Result = `error:${isDup ? "duplicate" : `other:${e?.code ?? String(e?.message ?? "").slice(0, 80)}`}`;
     }
 
     let create2Result: string;
-    let create2Error: any = null;
     try {
       await prisma.sendJob.create({
         data: { userId, type: "campaign", logicalKey, payload: "{}", status: "Queued" },
       });
       create2Result = "created";
-    } catch (e) {
-      create2Error = e;
+    } catch (e: any) {
       const isDup =
-        (e?.code === "P2002") ||
+        e?.code === "P2002" ||
         (typeof e?.message === "string" && (e.message.includes("Unique constraint") || e.message.includes("UNIQUE constraint")));
-      create2Result = `error:${isDup ? "duplicate" : `other:${e?.code ?? e?.message?.slice(0, 80)}`}`;
+      create2Result = `error:${isDup ? "duplicate" : `other:${e?.code ?? String(e?.message ?? "").slice(0, 80)}`}`;
     }
 
     expect(create1Result).toBe("created");
