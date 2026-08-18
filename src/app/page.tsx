@@ -40,12 +40,6 @@ export default function HomePage() {
     return () => { active = false; };
   }, []);
 
-  const isUnauthorized = error.toLowerCase().includes("unauthorized") || error.includes("401");
-
-  if (isUnauthorized) {
-    return <DemoDashboard />;
-  }
-
   useEffect(() => {
     let active = true;
     api<{ onboarding: NonNullable<typeof onboarding> }>("/api/onboarding").then((result) => { if (active) setOnboarding(result.onboarding); }).catch(() => {});
@@ -62,6 +56,12 @@ export default function HomePage() {
     const timer = window.setInterval(poll, 15_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [data]);
+
+  const isUnauthorized = error.toLowerCase().includes("unauthorized") || error.includes("401");
+
+  if (isUnauthorized) {
+    return <DemoDashboard />;
+  }
 
   if (error) return <div className="empty-state"><div className="es-sub" style={{ color: "var(--red)" }}>{error}</div></div>;
 
