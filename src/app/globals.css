@@ -154,7 +154,17 @@ button {
 .main {
   flex: 1;
   padding: 32px 40px;
-  max-width: 1100px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.main > * {
+  width: 100%;
+  max-width: 1520px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .page-head {
@@ -243,8 +253,17 @@ textarea.input { resize: vertical; min-height: 120px; line-height: 1.6; }
 
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
 
+.dashboard-wide {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.dashboard-wide > section { min-width: 0; }
+
 @media (max-width: 900px) {
-  .split { grid-template-columns: 1fr; }
+  .split, .dashboard-wide { grid-template-columns: 1fr; }
   .main { padding: 20px; }
 }
 
@@ -678,4 +697,3 @@ body { font-family: var(--font-display); letter-spacing: -0.006em; }
 }
 .card-spotlight:hover::before { opacity: 1; }
 .card-spotlight > * { position: relative; z-index: 1; }
-

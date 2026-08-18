@@ -61,10 +61,10 @@ export default function TemplatesPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Templates" className="page-title" delay={40} animateBy="words" />
+          <BlurText text="Шаблоны" className="page-title" delay={40} animateBy="words" />
           <p className="page-sub"><ShinyText text="Reusable email templates for your sequences" speed={3} /></p>
         </div>
-        <Link href="/templates/new" className="btn btn-primary">+ New Template</Link>
+        <Link href="/templates/new" className="btn btn-primary">+ Новый шаблон</Link>
       </div>
 
       {error && <div className="card" style={{ padding: 12, marginBottom: 16, color: "var(--red)" }}>{error}</div>}
@@ -92,9 +92,9 @@ export default function TemplatesPage() {
       ) : filtered.length === 0 ? (
         <div className="card empty-state">
           <div className="es-icon" aria-hidden>📄</div>
-          <div className="es-title">No templates found</div>
-          <div className="es-sub">{data.length === 0 ? "Create your first template to reuse across sequences." : "Try a different category filter."}</div>
-          {data.length === 0 && <Link href="/templates/new" className="btn btn-primary" style={{ marginTop: 12 }}>Create template</Link>}
+          <div className="es-title">Шаблоны не найдены</div>
+          <div className="es-sub">{data.length === 0 ? "Создайте первый шаблон для повторного использования в цепочках." : "Попробуйте изменить фильтр категории."}</div>
+          {data.length === 0 && <Link href="/templates/new" className="btn btn-primary" style={{ marginTop: 12 }}>Создать шаблон</Link>}
         </div>
       ) : (
         <PageTransition>
@@ -116,7 +116,7 @@ export default function TemplatesPage() {
                     </div>
                     <div className="row" style={{ marginTop: 10, gap: 8 }}>
                       <button className="btn btn-sm btn-primary" onClick={() => router.push(`/templates/${t.id}`)}>Edit</button>
-                      <button className="btn btn-sm btn-outline-danger" onClick={() => remove(t.id, t.name)}>Delete</button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={() => remove(t.id, t.name)}>Удалить</button>
                     </div>
                   </div>
                 </SpotlightCard>

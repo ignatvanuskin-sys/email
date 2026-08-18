@@ -35,10 +35,10 @@ export function CommandPalette({
 
   const actions: Action[] = useMemo(
     () => [
-      { id: "leads", label: "Search leads", group: "Leads", icon: "🔍", kbd: "G L", run: () => go("/leads") },
+      { id: "leads", label: "Найти лидов", group: "Лиды", icon: "🔍", kbd: "G L", run: () => go("/leads") },
       { id: "add", label: "Add lead", group: "Leads", icon: "+", kbd: "C", run: () => go("/leads/new") },
       { id: "import", label: "Import leads", group: "Leads", icon: "⇪", kbd: "I", run: () => go("/leads/import") },
-      { id: "campaigns", label: "Search campaigns", group: "Campaigns", icon: "📣", run: () => go("/campaigns") },
+      { id: "campaigns", label: "Найти кампанию", group: "Кампании", icon: "📣", run: () => go("/campaigns") },
       { id: "create-campaign", label: "Create campaign", group: "Campaigns", icon: "+", kbd: "G C", run: () => go("/campaigns/new") },
       { id: "sequences", label: "Email sequences", group: "Campaigns", icon: "⇉", run: () => go("/sequences") },
       { id: "templates", label: "Email templates", group: "Campaigns", icon: "📝", run: () => go("/templates") },
@@ -88,10 +88,10 @@ export function CommandPalette({
           <input
             ref={inputRef}
             className="cmd-input"
-            placeholder="Type a command or search…"
+            placeholder="Введите команду или запрос…"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setIndex(0); }}
-            aria-label="Search commands"
+            aria-label="Поиск команд"
           />
           <span className="kbd">esc</span>
         </div>

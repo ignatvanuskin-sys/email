@@ -8,6 +8,12 @@ function run(command, args) {
   });
 }
 
-run("./node_modules/.bin/prisma", ["db", "push", "--schema", "prisma/schema.postgres.prisma", "--accept-data-loss"])
+const schema = "prisma/schema.postgres.prisma";
+const useMigrations = process.env.PRISMA_MIGRATE_DEPLOY === "true";
+const prismaArgs = useMigrations
+  ? ["migrate", "deploy", "--schema", schema]
+  : ["db", "push", "--schema", schema, "--accept-data-loss"];
+
+run("./node_modules/.bin/prisma", prismaArgs)
   .then(() => run("node", ["server.js"]))
   .catch((error) => { console.error(error); process.exit(1); });

@@ -7,15 +7,15 @@ import Image from "next/image";
 
 const LINKS = [
   { href: "/", label: "Главная", icon: "⌂" },
-  { href: "/analytics", label: "Analytics", icon: "◒" },
+  { href: "/analytics", label: "Аналитика", icon: "◒" },
   { href: "/leads", label: "Лиды", icon: "◈" },
-  { href: "/campaigns", label: "Campaigns", icon: "📣" },
-  { href: "/activation", label: "Launch wizard", icon: "✦" },
-  { href: "/sequences", label: "Sequences", icon: "⇉" },
-  { href: "/templates", label: "Templates", icon: "📝" },
-  { href: "/segments", label: "Segments", icon: "🎯" },
+  { href: "/campaigns", label: "Кампании", icon: "📣" },
+  { href: "/activation", label: "Запуск рассылки", icon: "✦" },
+  { href: "/sequences", label: "Цепочки", icon: "⇉" },
+  { href: "/templates", label: "Шаблоны", icon: "📝" },
+  { href: "/segments", label: "Сегменты", icon: "🎯" },
   { href: "/follow-ups", label: "Повторные контакты", icon: "⏰" },
-  { href: "/inbox", label: "Reply inbox", icon: "✉" },
+  { href: "/inbox", label: "Входящие ответы", icon: "✉" },
   { href: "/deliverability", label: "Доставляемость", icon: "◇" },
   { href: "/settings", label: "Настройки", icon: "⚙" },
 ];
@@ -46,7 +46,7 @@ export function Nav({
          {branding?.logoUrl ? <Image src={branding.logoUrl} alt="" width={24} height={24} unoptimized style={{ width: 24, height: 24, objectFit: "contain", borderRadius: 6 }} /> : <span className="mark" aria-hidden />}
          <span>{branding?.name || "ClipReach"}</span>
       </div>
-      <nav aria-label="Main navigation">
+       <nav aria-label="Основная навигация">
         {LINKS.map((l) => (
           <Link
             key={l.href}
@@ -62,7 +62,7 @@ export function Nav({
           className={`nav-link ${pathname === "/leads/import" ? "active" : ""}`}
         >
           <span aria-hidden style={{ width: 18, textAlign: "center" }}>⇪</span>
-          <span>Import leads</span>
+           <span>Импорт лидов</span>
         </Link>
         <Link href="/leads/new" className={`nav-link ${pathname === "/leads/new" ? "active" : ""}`}>
           <span aria-hidden style={{ width: 18, textAlign: "center" }}>＋</span>
@@ -77,7 +77,7 @@ export function Nav({
           aria-pressed={paused}
         >
           <span className={`pulse-dot ${paused ? "paused" : "live"}`} aria-hidden />
-          <span className="pause-label">{paused ? "OUTREACH PAUSED" : "OUTREACH ACTIVE"}</span>
+          <span className="pause-label">{paused ? "РАССЫЛКА ПРИОСТАНОВЛЕНА" : "РАССЫЛКА АКТИВНА"}</span>
           <span aria-hidden>{paused ? "▶" : "⏹"}</span>
         </button>
 
@@ -85,9 +85,9 @@ export function Nav({
           <div style={{ fontWeight: 600 }}>{email}</div>
           <div className="row" style={{ gap: 8, marginTop: 4 }}>
             <button className="btn-ghost-danger btn-sm" onClick={logout}>
-              Log out
+              Выйти
             </button>
-            <span className="kbd" title="Open command palette">⌘K</span>
+            <span className="kbd" title="Открыть командную палитру">⌘K</span>
           </div>
         </div>
       </div>

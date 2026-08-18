@@ -94,7 +94,7 @@ export default function LeadProfilePage() {
   });
 
   if (error) return <div className="empty">{error}</div>;
-  if (!data) return <div className="empty">Loading lead…</div>;
+  if (!data) return <div className="empty">Загрузка лида…</div>;
 
   const lead = data.lead;
 
@@ -109,7 +109,7 @@ export default function LeadProfilePage() {
           </div>
           <p className="page-sub"><ShinyText text={lead.companyOrChannel || lead.niche || ""} speed={3} /></p>
         </div>
-        <Link href="/leads" className="btn">Back</Link>
+        <Link href="/leads" className="btn">Назад</Link>
       </div>
 
       {note && <div className="card" style={{ padding: 12, marginBottom: 16, borderColor: "#ff4444", color: "#ff4444" }}>{note}</div>}
@@ -117,16 +117,16 @@ export default function LeadProfilePage() {
       <div className="split">
         <div className="stack" style={{ gap: 16 }}>
           <FadeContent><section className="card" style={{ padding: 18 }}>
-            <div className="section-label">Details</div>
-            <DetailRow label="Email" value={lead.email ?? "—"} />
-            <DetailRow label="Channel" value={lead.companyOrChannel || "—"} />
+            <div className="section-label">Детали</div>
+            <DetailRow label="Электронная почта" value={lead.email ?? "—"} />
+            <DetailRow label="Канал" value={lead.companyOrChannel || "—"} />
             <DetailRow label="Niche" value={lead.niche || "—"} />
             <DetailRow label="YouTube" value={lead.youtubeUrl ?? "—"} />
-            <DetailRow label="Created" value={formatDate(lead.createdAt)} />
+            <DetailRow label="Создан" value={formatDate(lead.createdAt)} />
             <div className="divider" />
             <div className="row">
               <button className="btn btn-primary" onClick={analyze} disabled={!!busy}>
-                {busy === "analyzing" ? <><span className="spinner" /> Analyzing…</> : "Analyze"}
+                {busy === "analyzing" ? <><span className="spinner" /> Анализ…</> : "Анализировать"}
               </button>
               <select className="select" style={{ maxWidth: 170 }} value="" onChange={(e) => e.target.value && setStatus(e.target.value)}>
                 <option value="" disabled>Set status…</option>
@@ -162,9 +162,9 @@ export default function LeadProfilePage() {
 
       <div className="split">
         <section>
-          <div className="section-label">Emails</div>
+          <div className="section-label">Письма</div>
           <div className="card">
-            {data.emails.length === 0 ? <div className="empty">No emails yet.</div> : data.emails.map((e) => (
+            {data.emails.length === 0 ? <div className="empty">Писем пока нет.</div> : data.emails.map((e) => (
               <div key={e.id} className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
                 <span className="grow" style={{ fontWeight: 550 }}>{e.subject}</span>
                 <span className={`badge ${e.status === "Sent" ? "green" : e.status === "Failed" ? "red" : "gray"}`}>{e.status}</span>
@@ -177,7 +177,7 @@ export default function LeadProfilePage() {
         <section>
           <div className="section-label">Повторные контакты</div>
           <div className="card">
-            {data.followUps.length === 0 ? <div className="empty">No follow-ups.</div> : data.followUps.map((f) => (
+            {data.followUps.length === 0 ? <div className="empty">Повторных контактов пока нет.</div> : data.followUps.map((f) => (
               <div key={f.id} className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
                 <span className="grow" style={{ fontWeight: 550 }}>{f.note}</span>
                 <span className="small muted">{formatDate(f.dueDate)}</span>

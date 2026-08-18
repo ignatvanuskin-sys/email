@@ -42,38 +42,38 @@ export default function RegisterPage() {
       <FadeContent blur duration={0.7} threshold={0}>
         <div className="card card-glass" style={{ width: 440, padding: 28 }}>
           <div style={{ marginBottom: 6 }}>
-            <BlurText text="Create your workspace" className="page-title" delay={50} animateBy="words" />
+            <BlurText text="Создайте рабочее пространство" className="page-title" delay={50} animateBy="words" />
           </div>
           <p className="page-sub" style={{ marginBottom: 20 }}>
-            Set up your workspace and start finding clients in minutes.
+            Настройте пространство и начните находить клиентов за несколько минут.
           </p>
           <form onSubmit={submit}>
             <div className="field">
-              <label>Name</label>
+              <label>Имя</label>
               <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jordan Smith" />
             </div>
             <div className="field">
-              <label>Email</label>
+              <label>Электронная почта</label>
               <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="field">
-              <label>Password (min 8 chars)</label>
+              <label>Пароль (минимум 8 символов)</label>
               <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <div className="field">
-              <label>What service do you sell?</label>
+              <label>Какую услугу вы продаёте?</label>
               <textarea className="input" value={business} onChange={(e) => setBusiness(e.target.value)} rows={3} />
             </div>
             {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
             <ClickSpark sparkColor="rgba(255,255,255,0.8)" sparkSize={7} sparkRadius={18} sparkCount={10}>
               <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
-                {loading ? "Creating account…" : "Create account"}
+                {loading ? "Создание аккаунта…" : "Создать аккаунт"}
               </button>
             </ClickSpark>
           </form>
           <p className="small muted" style={{ marginTop: 16, textAlign: "center" }}>
-            Already have an account?{" "}
-            <Link href="/login" style={{ color: "var(--accent)", fontWeight: 600 }}>Sign in</Link>
+            Уже есть аккаунт?{" "}
+            <Link href="/login" style={{ color: "var(--accent)", fontWeight: 600 }}>Войти</Link>
           </p>
         </div>
       </FadeContent>

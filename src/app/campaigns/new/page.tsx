@@ -108,8 +108,8 @@ export default function NewCampaignPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="New campaign" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub"><ShinyText text="Configure your outreach campaign" speed={3} /></p>
+          <BlurText text="Новая кампания" className="page-title" delay={40} animateBy="words" />
+          <p className="page-sub"><ShinyText text="Настройте параметры новой рассылки" speed={3} /></p>
         </div>
         <Link href="/campaigns" className="btn">Back to campaigns</Link>
       </div>

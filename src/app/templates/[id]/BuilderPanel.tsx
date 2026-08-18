@@ -5,7 +5,7 @@ import type { EmailBlock, EmailDocument } from "@/lib/emailBuilder";
 export function BuilderPanel({ document, selectedBlock, onSelect, onChange }: { document: EmailDocument; selectedBlock: string | null; onSelect: (id: string | null) => void; onChange: (document: EmailDocument) => void }) {
   const add = (type: EmailBlock["type"]) => {
     const id = `${type}-${Date.now()}`;
-    const block: EmailBlock = type === "text" ? { id, type, text: "New paragraph" } : type === "heading" ? { id, type, text: "Heading", level: 2 } : type === "button" ? { id, type, text: "Call to action", url: "https://example.com" } : type === "image" ? { id, type, url: "https://placehold.co/600x240", alt: "Image" } : { id, type };
+    const block: EmailBlock = type === "text" ? { id, type, text: "Новый абзац" } : type === "heading" ? { id, type, text: "Заголовок", level: 2 } : type === "button" ? { id, type, text: "Призыв к действию", url: "https://example.com" } : type === "image" ? { id, type, url: "https://placehold.co/600x240", alt: "Изображение" } : { id, type };
     onChange({ ...document, blocks: [...document.blocks, block] }); onSelect(id);
   };
   const update = (patch: Partial<EmailBlock>) => onChange({ ...document, blocks: document.blocks.map((block) => block.id === selectedBlock ? { ...block, ...patch } as EmailBlock : block) });

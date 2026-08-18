@@ -63,10 +63,10 @@ export default function CampaignsPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Campaigns" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub"><ShinyText text="Manage your outreach campaigns" speed={3} /></p>
+          <BlurText text="Кампании" className="page-title" delay={40} animateBy="words" />
+          <p className="page-sub"><ShinyText text="Управляйте рассылками и отслеживайте результаты" speed={3} /></p>
         </div>
-        <Link href="/campaigns/new" className="btn btn-primary">+ New Campaign</Link>
+        <Link href="/campaigns/new" className="btn btn-primary">+ Новая кампания</Link>
       </div>
 
       {error && <div className="card" style={{ padding: 12, marginBottom: 16, color: "var(--red)" }}>{error}</div>}
@@ -80,9 +80,9 @@ export default function CampaignsPage() {
       ) : data.length === 0 ? (
         <div className="card empty-state">
           <div className="es-icon" aria-hidden>📣</div>
-          <div className="es-title">No campaigns yet</div>
-          <div className="es-sub">Create your first campaign to start sending outreach emails.</div>
-          <Link href="/campaigns/new" className="btn btn-primary" style={{ marginTop: 12 }}>Create campaign</Link>
+          <div className="es-title">Кампаний пока нет</div>
+          <div className="es-sub">Создайте первую кампанию, чтобы начать отправлять письма.</div>
+          <Link href="/campaigns/new" className="btn btn-primary" style={{ marginTop: 12 }}>Создать кампанию</Link>
         </div>
       ) : (
         <PageTransition>
@@ -93,7 +93,7 @@ export default function CampaignsPage() {
                   <div className="row">
                     <div className="grow">
                       <div style={{ fontWeight: 650, fontSize: 16 }}>{c.name}</div>
-                      <div className="small muted" style={{ marginTop: 2 }}>{c.description || "No description"}</div>
+                      <div className="small muted" style={{ marginTop: 2 }}>{c.description || "Без описания"}</div>
                     </div>
                     <span className={`badge ${STATUS_STYLES[c.status] || "gray"}`}>{c.status}</span>
                   </div>
@@ -103,22 +103,22 @@ export default function CampaignsPage() {
                     <span className="small muted">{new Date(c.createdAt).toLocaleDateString()}</span>
                     <span className="grow" />
                     {c.status === "Draft" && (
-                      <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); act(c.id, "start"); }}>Start</button>
+                        <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); act(c.id, "start"); }}>Запустить</button>
                     )}
                     {c.status === "Running" && (
                       <>
-                        <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); act(c.id, "pause"); }}>Pause</button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={(e) => { e.stopPropagation(); act(c.id, "stop"); }}>Stop</button>
+                         <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); act(c.id, "pause"); }}>Пауза</button>
+                         <button className="btn btn-sm btn-outline-danger" onClick={(e) => { e.stopPropagation(); act(c.id, "stop"); }}>Остановить</button>
                       </>
                     )}
                     {c.status === "Paused" && (
                       <>
-                        <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); act(c.id, "start"); }}>Resume</button>
-                        <button className="btn btn-sm btn-outline-danger" onClick={(e) => { e.stopPropagation(); act(c.id, "stop"); }}>Stop</button>
+                        <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); act(c.id, "start"); }}>Возобновить</button>
+                        <button className="btn btn-sm btn-outline-danger" onClick={(e) => { e.stopPropagation(); act(c.id, "stop"); }}>Остановить</button>
                       </>
                     )}
                     {c.status === "Running" && (
-                      <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); api(`/api/campaigns/${c.id}/send`, { method: "POST" }).then(() => { notify("Batch sent", "success"); load(); }).catch((err) => notify(err.message, "error")); }}>Send batch</button>
+                       <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); api(`/api/campaigns/${c.id}/send`, { method: "POST" }).then(() => { notify("Пакет отправлен", "success"); load(); }).catch((err) => notify(err.message, "error")); }}>Отправить пакет</button>
                     )}
                   </div>
                 </div>

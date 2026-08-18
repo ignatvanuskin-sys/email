@@ -129,12 +129,12 @@ export default function LeadsPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Leads" className="page-title" delay={40} animateBy="words" />
+          <BlurText text="Лиды" className="page-title" delay={40} animateBy="words" />
           <p className="page-sub"><ShinyText text={`${leads.length} prospects in your pipeline`} speed={3} /></p>
         </div>
         <div className="row">
-          <Link href="/leads/import" className="btn btn-primary">⇪ Import leads</Link>
-          <Link href="/leads/new" className="btn">＋ Add Lead</Link>
+          <Link href="/leads/import" className="btn btn-primary">⇪ Импортировать лиды</Link>
+          <Link href="/leads/new" className="btn">＋ Добавить лид</Link>
         </div>
       </div>
 
@@ -158,7 +158,7 @@ export default function LeadsPage() {
         <div className="card" style={{ padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12, borderColor: "var(--accent)" }}>
           <strong>{selected.size} selected</strong>
           <span className="grow" />
-          <button className="btn btn-sm btn-outline-danger" onClick={bulkDelete}>Delete selected</button>
+          <button className="btn btn-sm btn-outline-danger" onClick={bulkDelete}>Удалить выбранные</button>
         </div>
       )}
 
@@ -177,10 +177,10 @@ export default function LeadsPage() {
           <div className="es-title">{leads.length === 0 ? "Your pipeline is empty" : "No matches"}</div>
           <div className="es-sub">
             {leads.length === 0
-              ? "Import your prospects from CSV, XLSX or Google Sheets to get started."
+              ? "Импортируйте контакты из CSV, XLSX или Google Sheets, чтобы начать работу."
               : "Try adjusting your search or filters."}
           </div>
-          {leads.length === 0 && <Link href="/leads/import" className="btn btn-primary" style={{ marginTop: 8 }}>Import leads</Link>}
+          {leads.length === 0 && <Link href="/leads/import" className="btn btn-primary" style={{ marginTop: 8 }}>Импортировать лиды</Link>}
         </div>
       ) : (
         <PageTransition>
@@ -229,4 +229,3 @@ export default function LeadsPage() {
     </div>
   );
 }
-

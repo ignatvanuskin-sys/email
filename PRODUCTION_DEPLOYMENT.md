@@ -7,6 +7,7 @@
 - A scheduler calling `POST /api/internal/worker` every minute.
 - A process-safe worker deployment or one dedicated worker instance.
 - HTTPS public `APP_URL`.
+- `PRISMA_MIGRATE_DEPLOY=true` after the initial schema bootstrap, with committed PostgreSQL migrations.
 
 ## Required secrets
 
@@ -33,13 +34,14 @@ TELEGRAM_WEBHOOK_SECRET=
 
 1. Set `POSTGRES_PASSWORD` and create `.env.production` from the required secret list.
 2. Validate the production schema with `DATABASE_URL=postgresql://... npx prisma validate --schema prisma/schema.postgres.prisma`.
-3. Generate or apply PostgreSQL migrations with `npm run db:migrate:postgres`.
-4. Start `docker compose -f docker-compose.production.yml up -d`.
-5. Verify `GET /api/health` returns HTTP 200.
-6. Verify the worker logs show successful iterations every 15 seconds.
-7. Verify deliverability DNS before real sending.
-8. Send a test email and validate text/html, unsubscribe, click and open tracking.
-9. Start with a small campaign and monitor bounce/complaint/failure rates.
+3. Bootstrap a new database once with `PRISMA_MIGRATE_DEPLOY=false`, then commit the resulting PostgreSQL migration and set `PRISMA_MIGRATE_DEPLOY=true` for every subsequent release.
+4. Generate or apply PostgreSQL migrations with `npm run db:migrate:postgres`.
+5. Start `docker compose -f docker-compose.production.yml up -d`.
+6. Verify `GET /api/health` returns HTTP 200.
+7. Verify the worker logs show successful iterations every 15 seconds.
+8. Verify deliverability DNS before real sending.
+9. Send a test email and validate text/html, unsubscribe, click and open tracking.
+10. Start with a small campaign and monitor bounce/complaint/failure rates.
 
 ## Safety gates
 

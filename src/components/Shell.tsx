@@ -25,7 +25,7 @@ export function Shell({
     try {
       await api("/api/settings/pause", { method: "POST", body: JSON.stringify({ paused: next }) });
       setPaused(next);
-      notify(next ? "Outreach paused — no new emails will be sent." : "Outreach resumed.", "info");
+      notify(next ? "Рассылка приостановлена: новые письма не отправляются." : "Рассылка возобновлена.", "info");
     } catch (err) {
       notify(err instanceof Error ? err.message : "Не удалось изменить состояние рассылки", "error");
     }

@@ -64,8 +64,8 @@ export default function NewTemplatePage() {
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">New template</h1>
-          <p className="page-sub">Create a reusable email template.</p>
+          <h1 className="page-title">Новый шаблон</h1>
+          <p className="page-sub">Создайте шаблон письма для повторного использования.</p>
         </div>
         <Link href="/templates" className="btn">Back to templates</Link>
       </div>
@@ -105,13 +105,13 @@ export default function NewTemplatePage() {
         </div>
 
         <button type="button" className="btn" style={{ width: "100%", marginBottom: 12 }} disabled={aiLoading} onClick={generateWithAI}>
-          {aiLoading ? <><span className="spinner" /> Generating...</> : "Generate with AI"}
+          {aiLoading ? <><span className="spinner" /> Создание...</> : "Создать с помощью ИИ"}
         </button>
 
         {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
 
         <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
-          {loading ? "Creating..." : "Create template"}
+          {loading ? "Создание..." : "Создать шаблон"}
         </button>
       </form>
     </div>

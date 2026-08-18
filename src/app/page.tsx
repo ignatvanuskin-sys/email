@@ -13,13 +13,13 @@ import FadeContent from "@/components/react-bits/FadeContent";
 import SpotlightCard from "@/components/react-bits/SpotlightCard";
 
 const ACTIVITY_META: Record<string, { icon: string; cls: string; label: string }> = {
-  LeadCreated: { icon: "✓", cls: "green", label: "Lead created" },
-  LeadImported: { icon: "⇪", cls: "green", label: "Lead imported" },
-  EmailGenerated: { icon: "✉", cls: "accent", label: "Email generated" },
-  EmailApproved: { icon: "✓", cls: "blue", label: "Email approved" },
-  EmailSent: { icon: "➤", cls: "gray", label: "Email sent" },
-  StatusChanged: { icon: "↻", cls: "gray", label: "Status changed" },
-  Analyzed: { icon: "◈", cls: "accent", label: "Lead analyzed" },
+  LeadCreated: { icon: "✓", cls: "green", label: "Лид создан" },
+  LeadImported: { icon: "⇪", cls: "green", label: "Лид импортирован" },
+  EmailGenerated: { icon: "✉", cls: "accent", label: "Письмо создано" },
+  EmailApproved: { icon: "✓", cls: "blue", label: "Письмо одобрено" },
+  EmailSent: { icon: "➤", cls: "gray", label: "Письмо отправлено" },
+  StatusChanged: { icon: "↻", cls: "gray", label: "Статус изменён" },
+  Analyzed: { icon: "◈", cls: "accent", label: "Лид проанализирован" },
 };
 
 export default function HomePage() {
@@ -90,14 +90,14 @@ export default function HomePage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Dashboard" className="page-title" delay={40} animateBy="words" />
+          <BlurText text="Главная" className="page-title" delay={40} animateBy="words" />
           <p className="page-sub">
-            <ShinyText text={c.pendingFollowUps === 0 ? "All caught up — no follow-ups due today." : `${c.pendingFollowUps} follow-up(s) pending for today.`} speed={3} shineColor="#a0a0b0" />
+            <ShinyText text={c.pendingFollowUps === 0 ? "На сегодня всё готово — повторных контактов нет." : `${c.pendingFollowUps} повторных контакта запланировано на сегодня.`} speed={3} shineColor="#a0a0b0" />
           </p>
         </div>
         <div className="row">
-          <Link href="/leads/import" className="btn">⇪ Import leads</Link>
-          <Link href="/leads/new" className="btn btn-primary">＋ Add lead</Link>
+          <Link href="/leads/import" className="btn">⇪ Импортировать лиды</Link>
+          <Link href="/leads/new" className="btn btn-primary">＋ Добавить лид</Link>
         </div>
       </div>
 
@@ -152,15 +152,15 @@ export default function HomePage() {
         </section>
       </FadeContent>
 
-      <div className="split" style={{ alignItems: "start" }}>
+      <div className="dashboard-wide" style={{ alignItems: "start" }}>
         <section>
-          <div className="section-label">Hot leads</div>
+          <div className="section-label">Горячие лиды</div>
           <SpotlightCard className="card" spotlightColor="rgba(255, 92, 31, 0.18)">
             {data.hotLeads.length === 0 ? (
               <div className="empty-state" style={{ padding: 32 }}>
                 <div className="es-icon" aria-hidden>◈</div>
-                <div className="es-title">No hot leads yet</div>
-                <div className="es-sub">Analyze leads or import a batch to surface high-value prospects.</div>
+                <div className="es-title">Горячих лидов пока нет</div>
+                <div className="es-sub">Проанализируйте лидов или импортируйте список, чтобы найти перспективных клиентов.</div>
               </div>
             ) : (
               data.hotLeads.map((l, i) => (
@@ -174,13 +174,13 @@ export default function HomePage() {
         </section>
 
         <section>
-          <div className="section-label">Follow-ups due today</div>
+          <div className="section-label">Повторные контакты на сегодня</div>
           <SpotlightCard className="card" spotlightColor="rgba(37, 99, 235, 0.16)">
             {data.dueFollowUps.length === 0 ? (
               <div className="empty-state" style={{ padding: 32 }}>
                 <div className="es-icon" aria-hidden>⏰</div>
-                <div className="es-title">Nothing due</div>
-                <div className="es-sub">No follow-ups are scheduled for today.</div>
+                <div className="es-title">На сегодня ничего нет</div>
+                <div className="es-sub">Повторные контакты на сегодня не запланированы.</div>
               </div>
             ) : (
               data.dueFollowUps.map((f, i) => (
@@ -199,13 +199,13 @@ export default function HomePage() {
 
       <FadeContent>
         <section>
-          <div className="section-label">Activity feed</div>
+          <div className="section-label">Лента активности</div>
           <div className="card" style={{ overflow: "hidden" }}>
             {data.activities.length === 0 ? (
               <div className="empty-state" style={{ padding: 32 }}>
                 <div className="es-icon" aria-hidden>⚡</div>
-                <div className="es-title">No activity yet</div>
-                <div className="es-sub">Import leads and generate emails — your recent actions will appear here.</div>
+                <div className="es-title">Активности пока нет</div>
+                <div className="es-sub">Импортируйте лидов и создайте письма — последние действия появятся здесь.</div>
               </div>
             ) : (
               <div className="activity-feed">
@@ -233,13 +233,13 @@ export default function HomePage() {
 
       <FadeContent>
         <section style={{ marginTop: 24 }}>
-          <div className="section-label">Recent replies</div>
+          <div className="section-label">Последние ответы</div>
           <SpotlightCard className="card" spotlightColor="rgba(37, 99, 235, 0.14)">
             {data.recentReplies.length === 0 ? (
               <div className="empty-state" style={{ padding: 32 }}>
                 <div className="es-icon" aria-hidden>💬</div>
-                <div className="es-title">No replies yet</div>
-                <div className="es-sub">Replies will show up here as soon as someone responds.</div>
+                <div className="es-title">Ответов пока нет</div>
+                <div className="es-sub">Ответы появятся здесь, как только кто-нибудь ответит на письмо.</div>
               </div>
             ) : (
               data.recentReplies.map((r, i) => (

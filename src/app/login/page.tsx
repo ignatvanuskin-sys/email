@@ -39,30 +39,30 @@ export default function LoginPage() {
             <span style={{ fontSize: 20, fontWeight: 700 }}>ClipReach</span>
           </div>
           <div style={{ marginBottom: 4 }}>
-            <BlurText text="Welcome back" className="page-title" delay={50} animateBy="words" />
+            <BlurText text="С возвращением" className="page-title" delay={50} animateBy="words" />
           </div>
           <p className="page-sub" style={{ marginBottom: 20 }}>
-            Sign in to your outreach workspace.
+            Войдите в рабочее пространство рассылок.
           </p>
           <form onSubmit={submit}>
             <div className="field">
-              <label>Email</label>
+              <label>Электронная почта</label>
               <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="field">
-              <label>Password</label>
+              <label>Пароль</label>
               <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
             <ClickSpark sparkColor="rgba(255,255,255,0.8)" sparkSize={7} sparkRadius={18} sparkCount={10}>
               <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
-                {loading ? "Signing in…" : "Sign in"}
+                {loading ? "Вход…" : "Войти"}
               </button>
             </ClickSpark>
           </form>
           <p className="small muted" style={{ marginTop: 16, textAlign: "center" }}>
-            No account?{" "}
-            <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>Create one</Link>
+            Нет аккаунта?{" "}
+            <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>Создать</Link>
           </p>
         </div>
       </FadeContent>
