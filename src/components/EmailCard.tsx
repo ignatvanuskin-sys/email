@@ -9,11 +9,11 @@ import ClickSpark from "@/components/react-bits/ClickSpark";
 export type EmailDraft = { id: string; subject: string; body: string };
 
 const AI_ACTIONS: Array<{ key: string; label: string; icon: string }> = [
-  { key: "improve", label: "Improve", icon: "✦" },
-  { key: "shorten", label: "Shorten", icon: "⤢" },
-  { key: "casual", label: "More casual", icon: "🙂" },
-  { key: "professional", label: "More professional", icon: "💼" },
-  { key: "regenerate", label: "Regenerate", icon: "↻" },
+  { key: "improve", label: "Улучшить", icon: "✦" },
+  { key: "shorten", label: "Сократить", icon: "⤢" },
+  { key: "casual", label: "Сделать проще", icon: "🙂" },
+  { key: "professional", label: "Сделать профессиональнее", icon: "💼" },
+  { key: "regenerate", label: "Создать заново", icon: "↻" },
 ];
 
 export function EmailCard({
@@ -48,7 +48,7 @@ export function EmailCard({
   };
 
   const edit = (action: string) => {
-    setRewriteLabel(AI_ACTIONS.find((a) => a.key === action)?.label ?? "Rewrite");
+    setRewriteLabel(AI_ACTIONS.find((a) => a.key === action)?.label ?? "Переписывание");
     run(action, async () => {
       if (!draft) return;
       const res = await api<{ email: EmailDraft }>("/api/emails/edit", {
@@ -109,9 +109,9 @@ export function EmailCard({
     <section className="card" style={{ padding: 20 }}>
       <div className="row" style={{ marginBottom: 12 }}>
         <div className="section-label" style={{ marginBottom: 0 }}>
-          <ShinyText text="Email generator" speed={2.5} shineColor="#ffffff" color="#888" />
+          <ShinyText text="Генератор писем" speed={2.5} shineColor="#ffffff" color="#888" />
         </div>
-        {approved && <span className="badge green">Approved</span>}
+        {approved && <span className="badge green">Одобрено</span>}
       </div>
 
       {error && <div className="small" style={{ color: "var(--red)", marginBottom: 10 }}>{error}</div>}
@@ -119,7 +119,7 @@ export function EmailCard({
       {!draft || !draft.body ? (
         <ClickSpark sparkColor="rgba(255,255,255,0.7)" sparkSize={7} sparkRadius={18} sparkCount={10}>
           <button className="btn btn-primary btn-lg btn-block" onClick={onGenerate} disabled={!!busy}>
-            {busy === "generating" ? <><span className="spinner" /> Generating…</> : "Generate Email"}
+            {busy === "generating" ? <><span className="spinner" /> Создание…</> : "Создать письмо"}
           </button>
         </ClickSpark>
       ) : (
@@ -152,24 +152,23 @@ export function EmailCard({
 
           <div className="row" style={{ flexWrap: "wrap" }}>
             <button className="btn btn-success btn-lg" onClick={approve} disabled={editing} style={{ flex: 1 }}>
-              {localBusy === "approve" ? "Approving…" : approved ? "✓ Approved — ready to send" : "✓ Approve"}
+              {localBusy === "approve" ? "Одобрение…" : approved ? "✓ Одобрено — готово к отправке" : "✓ Одобрить"}
             </button>
 {approved && (
               <div style={{ flex: 1, minWidth: 140 }}>
                 <ClickSpark sparkColor="rgba(255,255,255,0.8)" sparkSize={8} sparkRadius={20} sparkCount={12}>
                   <button className="btn btn-primary btn-lg" onClick={send} disabled={editing} style={{ width: "100%" }}>
-                    {localBusy === "send" ? <><span className="spinner" /> Sending...</> : "Send"}
+                    {localBusy === "send" ? <><span className="spinner" /> Отправка...</> : "Отправить"}
                   </button>
                 </ClickSpark>
               </div>
             )}
           </div>
           {approved && (
-            <p className="small muted">Your message is approved. Sending will move this lead to <strong>Contacted</strong> and schedule a follow-up.</p>
+            <p className="small muted">Письмо одобрено. После отправки лид получит статус <strong>Связались</strong>, а повторный контакт будет запланирован автоматически.</p>
           )}
         </div>
       )}
     </section>
   );
 }
-

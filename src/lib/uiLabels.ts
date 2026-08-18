@@ -62,6 +62,23 @@ export const suppressionReasonLabels = {
   HardBounce: "Недоставленное письмо",
 } as const;
 
+export const campaignStatusLabels = {
+  Draft: "Черновик",
+  Scheduled: "Запланирована",
+  Running: "Запущена",
+  Paused: "Приостановлена",
+  Completed: "Завершена",
+  Stopped: "Остановлена",
+} as const;
+
+export const providerStatusLabels = {
+  Connected: "Подключён",
+  Disconnected: "Не подключён",
+  Pending: "Ожидает проверки",
+  Verified: "Подтверждён",
+  Failed: "Ошибка",
+} as const;
+
 export function uiLabel<T extends Record<string, string>>(labels: T, value: string): string {
   return labels[value as keyof T] ?? value;
 }

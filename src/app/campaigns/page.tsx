@@ -9,6 +9,7 @@ import BlurText from "@/components/react-bits/BlurText";
 import ShinyText from "@/components/react-bits/ShinyText";
 import FadeContent from "@/components/react-bits/FadeContent";
 import { PageTransition } from "@/components/PageTransition";
+import { uiLabel, campaignStatusLabels } from "@/lib/uiLabels";
 
 type Campaign = {
   id: string;
@@ -41,7 +42,7 @@ export default function CampaignsPage() {
       const res = await api<{ campaigns: Campaign[] }>("/api/campaigns");
       setData(res.campaigns);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError(e instanceof Error ? e.message : "Не удалось загрузить кампании");
     } finally {
       setLoading(false);
     }
@@ -52,10 +53,10 @@ export default function CampaignsPage() {
   const act = async (id: string, action: string) => {
     try {
       await api(`/api/campaigns/${id}/${action}`, { method: "POST" });
-      notify(`Campaign ${action}ed`, "success");
+      notify(action === "start" ? "Кампания запущена" : action === "pause" ? "Кампания приостановлена" : "Кампания остановлена", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Action failed", "error");
+      notify(e instanceof Error ? e.message : "Действие не выполнено", "error");
     }
   };
 
@@ -95,11 +96,11 @@ export default function CampaignsPage() {
                       <div style={{ fontWeight: 650, fontSize: 16 }}>{c.name}</div>
                       <div className="small muted" style={{ marginTop: 2 }}>{c.description || "Без описания"}</div>
                     </div>
-                    <span className={`badge ${STATUS_STYLES[c.status] || "gray"}`}>{c.status}</span>
+                    <span className={`badge ${STATUS_STYLES[c.status] || "gray"}`}>{uiLabel(campaignStatusLabels, c.status)}</span>
                   </div>
                   <div className="row" style={{ marginTop: 10, gap: 16 }}>
-                    <span className="small muted">{c._count.leads} lead(s)</span>
-                    <span className="small muted">{c._count.variants} variant(s)</span>
+                    <span className="small muted">Лидов: {c._count.leads}</span>
+                    <span className="small muted">Вариантов: {c._count.variants}</span>
                     <span className="small muted">{new Date(c.createdAt).toLocaleDateString()}</span>
                     <span className="grow" />
                     {c.status === "Draft" && (

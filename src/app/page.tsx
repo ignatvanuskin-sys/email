@@ -78,12 +78,12 @@ export default function HomePage() {
 
   const c = data.counters;
   const kpis = [
-    { label: "Leads", value: c.totalLeads, icon: "◈", accent: true },
-    { label: "Emails sent", value: c.emailsSent, icon: "➤", suffix: "" },
+    { label: "Лиды", value: c.totalLeads, icon: "◈", accent: true },
+    { label: "Отправлено писем", value: c.emailsSent, icon: "➤", suffix: "" },
     { label: "Reply rate", value: c.replyRate, icon: "💬", suffix: "%" },
-    { label: "Qualified", value: c.qualified, icon: "✓", suffix: "" },
-    { label: "Clients", value: c.clients, icon: "★", suffix: "" },
-    { label: "New leads", value: c.newLeads, icon: "✦", suffix: "" },
+    { label: "Квалифицировано", value: c.qualified, icon: "✓", suffix: "" },
+    { label: "Клиенты", value: c.clients, icon: "★", suffix: "" },
+    { label: "Новые лиды", value: c.newLeads, icon: "✦", suffix: "" },
   ];
 
   return (
@@ -118,15 +118,15 @@ export default function HomePage() {
       <FadeContent>
         <section style={{ marginBottom: 24 }}>
           <div className="row" style={{ marginBottom: 8 }}>
-            <div className="section-label" style={{ marginBottom: 0 }}>Campaign analytics</div>
+            <div className="section-label" style={{ marginBottom: 0 }}>Аналитика кампаний</div>
             <span className="grow" />
             <Link href="/campaigns" className="btn btn-sm btn-ghost">View campaigns</Link>
           </div>
           <div className="metric-grid">
             <div className="kpi">
-              <div className="label">Campaigns</div>
+              <div className="label">Кампании</div>
               <div className="value"><AnimatedCounter value={data.analytics.totalCampaigns} /></div>
-              <div className="small muted">{data.analytics.runningCampaigns} running</div>
+              <div className="small muted">{data.analytics.runningCampaigns} запущено</div>
             </div>
             <div className="kpi">
               <div className="label">Delivered</div>

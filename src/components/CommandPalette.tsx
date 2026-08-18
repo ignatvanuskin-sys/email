@@ -36,19 +36,19 @@ export function CommandPalette({
   const actions: Action[] = useMemo(
     () => [
       { id: "leads", label: "Найти лидов", group: "Лиды", icon: "🔍", kbd: "G L", run: () => go("/leads") },
-      { id: "add", label: "Add lead", group: "Leads", icon: "+", kbd: "C", run: () => go("/leads/new") },
-      { id: "import", label: "Import leads", group: "Leads", icon: "⇪", kbd: "I", run: () => go("/leads/import") },
+      { id: "add", label: "Добавить лида", group: "Лиды", icon: "+", kbd: "C", run: () => go("/leads/new") },
+      { id: "import", label: "Импортировать лидов", group: "Лиды", icon: "⇪", kbd: "I", run: () => go("/leads/import") },
       { id: "campaigns", label: "Найти кампанию", group: "Кампании", icon: "📣", run: () => go("/campaigns") },
-      { id: "create-campaign", label: "Create campaign", group: "Campaigns", icon: "+", kbd: "G C", run: () => go("/campaigns/new") },
-      { id: "sequences", label: "Email sequences", group: "Campaigns", icon: "⇉", run: () => go("/sequences") },
-      { id: "templates", label: "Email templates", group: "Campaigns", icon: "📝", run: () => go("/templates") },
-      { id: "create-template", label: "Create template", group: "Campaigns", icon: "+", run: () => go("/templates/new") },
-      { id: "segments", label: "Segments", group: "Campaigns", icon: "🎯", run: () => go("/segments") },
-      { id: "create-segment", label: "Create segment", group: "Campaigns", icon: "+", run: () => go("/segments/new") },
-      { id: "generate", label: "Generate email", group: "Email", icon: "✉", run: () => go("/leads") },
-      { id: "settings", label: "Open settings", group: "Workspace", icon: "⚙", kbd: "G S", run: () => go("/settings") },
-      { id: "followups", label: "Follow-ups", group: "Workspace", icon: "⏰", run: () => go("/follow-ups") },
-      { id: "pause", label: paused ? "Resume outreach" : "Pause outreach", group: "Safety", icon: paused ? "▶" : "⏹", run: () => { onTogglePause(); onClose(); } },
+      { id: "create-campaign", label: "Создать кампанию", group: "Кампании", icon: "+", kbd: "G C", run: () => go("/campaigns/new") },
+      { id: "sequences", label: "Цепочки писем", group: "Кампании", icon: "⇉", run: () => go("/sequences") },
+      { id: "templates", label: "Шаблоны писем", group: "Кампании", icon: "📝", run: () => go("/templates") },
+      { id: "create-template", label: "Создать шаблон", group: "Кампании", icon: "+", run: () => go("/templates/new") },
+      { id: "segments", label: "Сегменты", group: "Кампании", icon: "🎯", run: () => go("/segments") },
+      { id: "create-segment", label: "Создать сегмент", group: "Кампании", icon: "+", run: () => go("/segments/new") },
+      { id: "generate", label: "Создать письмо", group: "Письма", icon: "✉", run: () => go("/leads") },
+      { id: "settings", label: "Открыть настройки", group: "Пространство", icon: "⚙", kbd: "G S", run: () => go("/settings") },
+      { id: "followups", label: "Повторные контакты", group: "Пространство", icon: "⏰", run: () => go("/follow-ups") },
+      { id: "pause", label: paused ? "Возобновить рассылку" : "Приостановить рассылку", group: "Безопасность", icon: paused ? "▶" : "⏹", run: () => { onTogglePause(); onClose(); } },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [paused],
@@ -81,7 +81,7 @@ export function CommandPalette({
   if (!open) return null;
 
   return (
-    <div className="cmd-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Command palette">
+    <div className="cmd-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="Командная палитра">
       <div className="cmd-panel" onClick={(e) => e.stopPropagation()}>
         <div className="cmd-input-row">
           <span aria-hidden style={{ color: "var(--text-faint)" }}>🔍</span>
@@ -97,7 +97,7 @@ export function CommandPalette({
         </div>
         <div className="cmd-list">
           {filtered.length === 0 ? (
-            <div className="empty" style={{ padding: 24 }}>No matching commands.</div>
+            <div className="empty" style={{ padding: 24 }}>Команды не найдены.</div>
           ) : (
             filtered.map((a, i) => (
               <div

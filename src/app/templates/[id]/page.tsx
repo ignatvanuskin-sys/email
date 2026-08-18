@@ -74,7 +74,7 @@ export default function EditTemplatePage() {
     setDynamicContent("");
   };
 
-  const saveSection = async () => { if (!sectionName.trim()) return; try { await api("/api/templates/sections", { method: "POST", body: JSON.stringify({ name: sectionName, documentJson: JSON.stringify(document) }) }); setSectionName(""); await loadSections(); notify("Reusable section saved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Section save failed", "error"); } };
+  const saveSection = async () => { if (!sectionName.trim()) return; try { await api("/api/templates/sections", { method: "POST", body: JSON.stringify({ name: sectionName, documentJson: JSON.stringify(document) }) }); setSectionName(""); await loadSections(); notify("Повторно используемый блок сохранён", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Не удалось сохранить блок", "error"); } };
   const insertSection = (section: { documentJson: string }) => { try { const value = JSON.parse(section.documentJson) as EmailDocument; if (value.version === 1) { setDocument((current) => ({ ...current, blocks: [...current.blocks, ...value.blocks.map((block) => ({ ...block, id: `${block.id}-${Date.now()}` }))] })); setBuilderMode(true); } } catch { notify("Invalid reusable section", "error"); } };
 
   const loadPreview = async () => {
@@ -107,30 +107,30 @@ export default function EditTemplatePage() {
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete template "${form.name}"?`)) return;
+    if (!window.confirm(`Удалить template "${form.name}"?`)) return;
     setDeleting(true);
     try {
       await api(`/api/templates/${params.id}`, { method: "DELETE" });
       notify("Template deleted", "success");
       router.push("/templates");
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Delete failed", "error");
+      notify(e instanceof Error ? e.message : "Удалить failed", "error");
     } finally {
       setDeleting(false);
     }
   };
 
   if (error) return <div className="empty">{error}</div>;
-  if (loading) return <div className="empty">Loading template...</div>;
+  if (loading) return <div className="empty">Загрузка шаблона...</div>;
 
   return (
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">Edit template</h1>
-          <p className="page-sub">Update your email template.</p>
+          <h1 className="page-title">Редактирование шаблона</h1>
+          <p className="page-sub">Обновите шаблон письма.</p>
         </div>
-        <Link href="/templates" className="btn">Back to templates</Link>
+        <Link href="/templates" className="btn">К шаблонам</Link>
       </div>
 
       <form className="card" style={{ maxWidth: 640, padding: 24 }} onSubmit={submit}>
@@ -140,21 +140,21 @@ export default function EditTemplatePage() {
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
-          <div className="row"><div className="section-label grow">Structured email builder</div><button type="button" className="btn btn-sm" onClick={() => setBuilderMode((value) => !value)}>{builderMode ? "Use plain text" : "Use builder"}</button></div>
+          <div className="row"><div className="section-label grow">Конструктор письма</div><button type="button" className="btn btn-sm" onClick={() => setBuilderMode((value) => !value)}>{builderMode ? "Использовать обычный текст" : "Использовать конструктор"}</button></div>
           {builderMode && <BuilderPanel document={document} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onChange={setDocument} />}
-          {builderMode && <div className="stack" style={{ gap: 8, marginTop: 12 }}><div className="row"><input className="input grow" value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Reusable section name" /><button type="button" className="btn btn-sm" onClick={saveSection} disabled={!sectionName.trim()}>Save section</button><button type="button" className="btn btn-sm" onClick={loadSections}>Load sections</button></div>{sections.map((section) => <button type="button" className="btn btn-sm" style={{ textAlign: "left" }} key={section.id} onClick={() => insertSection(section)}>Insert: {section.name}</button>)}</div>}
+          {builderMode && <div className="stack" style={{ gap: 8, marginTop: 12 }}><div className="row"><input className="input grow" value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Название блока" /><button type="button" className="btn btn-sm" onClick={saveSection} disabled={!sectionName.trim()}>Сохранить блок</button><button type="button" className="btn btn-sm" onClick={loadSections}>Загрузить блоки</button></div>{sections.map((section) => <button type="button" className="btn btn-sm" style={{ textAlign: "left" }} key={section.id} onClick={() => insertSection(section)}>Вставить: {section.name}</button>)}</div>}
           <div className="small muted" style={{ marginTop: 8 }}>Build with email-safe blocks. Legacy subject/body content remains available when builder mode is off.</div>
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
-          <div className="row"><div className="section-label grow">Email preview</div><button type="button" className="btn btn-sm" onClick={loadPreview} disabled={previewLoading}>{previewLoading ? "Rendering..." : "Preview desktop"}</button></div>
-          {preview && <><div className="small muted" style={{ margin: "8px 0" }}>Subject: {preview.subject}</div><iframe title="Email preview" sandbox="allow-same-origin" srcDoc={preview.html} style={{ width: "100%", height: 360, border: "1px solid var(--border)", borderRadius: 8, background: "white" }} /><details style={{ marginTop: 8 }}><summary className="small">Text version</summary><pre className="small" style={{ whiteSpace: "pre-wrap" }}>{preview.text}</pre></details></>}
+          <div className="row"><div className="section-label grow">Предпросмотр письма</div><button type="button" className="btn btn-sm" onClick={loadPreview} disabled={previewLoading}>{previewLoading ? "Подготовка..." : "Предпросмотр на компьютере"}</button></div>
+          {preview && <><div className="small muted" style={{ margin: "8px 0" }}>Тема: {preview.subject}</div><iframe title="Предпросмотр письма" sandbox="allow-same-origin" srcDoc={preview.html} style={{ width: "100%", height: 360, border: "1px solid var(--border)", borderRadius: 8, background: "white" }} /><details style={{ marginTop: 8 }}><summary className="small">Текстовая версия</summary><pre className="small" style={{ whiteSpace: "pre-wrap" }}>{preview.text}</pre></details></>}
           {compatibility.length > 0 && <div className="stack" style={{ gap: 5, marginTop: 8 }}>{compatibility.map((issue) => <div className="row small" key={`${issue.code}-${issue.client}`}><span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity}</span><span className="grow">{issue.message}</span><span className="muted">{issue.client}</span></div>)}</div>}
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
-          <div className="row"><div className="section-label grow">Dynamic Content</div><button type="button" className="btn btn-sm" onClick={() => setDynamicMode((value) => !value)}>{dynamicMode ? "Cancel" : "Add rule"}</button></div>
-          {dynamicMode && <div className="stack" style={{ gap: 8, marginTop: 10 }}><div className="row"><select className="select grow" value={dynamicField} onChange={(e) => setDynamicField(e.target.value)}><option value="niche">Niche</option><option value="company">Company</option><option value="firstName">First name</option></select><input className="input grow" value={dynamicValue} onChange={(e) => setDynamicValue(e.target.value)} placeholder="Value, e.g. SaaS" /></div><textarea className="input" rows={3} value={dynamicContent} onChange={(e) => setDynamicContent(e.target.value)} placeholder="Content shown when the rule matches" /><button type="button" className="btn btn-primary" onClick={insertDynamic}>Insert dynamic block</button></div>}
+          <div className="row"><div className="section-label grow">Динамический контент</div><button type="button" className="btn btn-sm" onClick={() => setDynamicMode((value) => !value)}>{dynamicMode ? "Отмена" : "Добавить правило"}</button></div>
+          {dynamicMode && <div className="stack" style={{ gap: 8, marginTop: 10 }}><div className="row"><select className="select grow" value={dynamicField} onChange={(e) => setDynamicField(e.target.value)}><option value="niche">Ниша</option><option value="company">Компания</option><option value="firstName">Имя</option></select><input className="input grow" value={dynamicValue} onChange={(e) => setDynamicValue(e.target.value)} placeholder="Значение, например SaaS" /></div><textarea className="input" rows={3} value={dynamicContent} onChange={(e) => setDynamicContent(e.target.value)} placeholder="Content shown when the rule matches" /><button type="button" className="btn btn-primary" onClick={insertDynamic}>Вставить динамический блок</button></div>}
           <div className="small muted" style={{ marginTop: 8 }}>A dynamic block is stored as safe JSON and rendered before sending. Existing plain-text templates remain unchanged.</div>
         </div>
 
@@ -190,10 +190,10 @@ export default function EditTemplatePage() {
 
         <div className="row" style={{ gap: 12 }}>
           <button className="btn btn-primary btn-lg grow" disabled={saving || deleting}>
-            {saving ? "Saving..." : "Save template"}
+            {saving ? "Saving..." : "Сохранить шаблон"}
           </button>
           <button type="button" className="btn btn-outline-danger btn-lg" disabled={saving || deleting} onClick={remove}>
-            {deleting ? "Deleting..." : "Delete"}
+            {deleting ? "Deleting..." : "Удалить"}
           </button>
         </div>
       </form>
