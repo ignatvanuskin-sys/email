@@ -88,6 +88,12 @@ export default function HomePage() {
 
   return (
     <div>
+      <section className="hero-panel">
+        <div className="hero-eyebrow">CLIPREACH / ОПЕРАЦИОННЫЙ ЦЕНТР</div>
+        <h1 className="page-title" style={{ marginTop: 12 }}>Ваши продажи. На автопилоте.</h1>
+        <p className="hero-copy">Персональные письма, точные сегменты и живые ответы в одном пространстве. Сегодняшние возможности уже ждут вас.</p>
+        <div className="hero-orbit" aria-hidden />
+      </section>
       <div className="page-head">
         <div>
           <BlurText text="Главная" className="page-title" delay={40} animateBy="words" />
@@ -120,7 +126,7 @@ export default function HomePage() {
           <div className="row" style={{ marginBottom: 8 }}>
             <div className="section-label" style={{ marginBottom: 0 }}>Аналитика кампаний</div>
             <span className="grow" />
-            <Link href="/campaigns" className="btn btn-sm btn-ghost">View campaigns</Link>
+            <Link href="/campaigns" className="btn btn-sm btn-ghost">Открыть кампании</Link>
           </div>
           <div className="metric-grid">
             <div className="kpi">
@@ -129,23 +135,23 @@ export default function HomePage() {
               <div className="small muted">{data.analytics.runningCampaigns} запущено</div>
             </div>
             <div className="kpi">
-              <div className="label">Delivered</div>
+              <div className="label">Доставлено</div>
               <div className="value"><AnimatedCounter value={data.analytics.delivered} /></div>
             </div>
             <div className="kpi">
-              <div className="label">Bounced</div>
+              <div className="label">Возвраты</div>
               <div className="value"><AnimatedCounter value={data.analytics.bounced} /></div>
             </div>
             <div className="kpi">
-              <div className="label">Failed</div>
+              <div className="label">Ошибки</div>
               <div className="value"><AnimatedCounter value={data.analytics.failed} /></div>
             </div>
             <div className="kpi">
-              <div className="label">Unsubscribed</div>
+              <div className="label">Отписались</div>
               <div className="value"><AnimatedCounter value={data.analytics.unsubscribed} /></div>
             </div>
             <div className="kpi">
-              <div className="label">Reply rate</div>
+              <div className="label">Ответы</div>
               <div className="value"><AnimatedCounter value={c.replyRate} suffix="%" /></div>
             </div>
           </div>

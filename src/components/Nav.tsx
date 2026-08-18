@@ -41,11 +41,12 @@ export function Nav({
   };
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar sidebar-premium">
       <div className="sidebar-brand">
          {branding?.logoUrl ? <Image src={branding.logoUrl} alt="" width={24} height={24} unoptimized style={{ width: 24, height: 24, objectFit: "contain", borderRadius: 6 }} /> : <span className="mark" aria-hidden />}
-         <span>{branding?.name || "ClipReach"}</span>
+          <span>{branding?.name || "ClipReach"}</span>
       </div>
+       <div className="sidebar-kicker">РАБОЧЕЕ ПРОСТРАНСТВО</div>
        <nav aria-label="Основная навигация">
         {LINKS.map((l) => (
           <Link
