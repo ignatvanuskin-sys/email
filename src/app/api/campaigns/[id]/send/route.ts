@@ -107,7 +107,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       else await prisma.campaignLead.updateMany({ where: { id: cl.id, status: "Queued" }, data: { status: "Queued" } });
     }
 
-    const remainingCount = await prisma.campaignLead.count({ where: { campaignId: id, status: "Pending" } });
+    const remainingCount = await prisma.campaignLead.count({ where: { campaignId: id, status: { in: ["Pending", "Queued"] } } });
     if (remainingCount === 0) {
       await prisma.campaign.update({ where: { id }, data: { status: "Completed", completedAt: new Date() } });
     }
