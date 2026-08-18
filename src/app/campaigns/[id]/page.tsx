@@ -76,9 +76,9 @@ export default function CampaignDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [editingName, setEditingName] = useState(false);
+  const [editingИмя, setEditingИмя] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
-  const [nameDraft, setNameDraft] = useState("");
+  const [nameDraft, setИмяDraft] = useState("");
   const [descDraft, setDescDraft] = useState("");
   const [variantOpen, setVariantOpen] = useState(false);
   const [variantForm, setVariantForm] = useState({ name: "Variant B", subject: "", body: "" });
@@ -96,7 +96,7 @@ export default function CampaignDetailPage() {
     try {
       const d = await api<Data>(`/api/campaigns/${id}`);
       setData(d);
-      setNameDraft(d.campaign.name);
+      setИмяDraft(d.campaign.name);
       setDescDraft(d.campaign.description);
       setActiveVersionId(d.campaign.activeVersionId ?? null);
       setApprovalExpiresAt(d.campaign.approvalExpiresAt ?? null);
@@ -170,7 +170,7 @@ export default function CampaignDetailPage() {
       const result = await api<{ analytics: Analytics; insights: { summary: string; recommendations: string[] } }>(`/api/campaigns/${id}/insights`, { method: "POST" });
       setAnalytics(result.analytics);
       setInsights(result.insights);
-    } catch (e) { notify(e instanceof Error ? e.message : "AI insights failed", "error"); }
+    } catch (e) { notify(e instanceof Error ? e.message : "Рекомендации ИИ failed", "error"); }
     finally { setAnalyticsBusy(false); }
   };
 
@@ -184,11 +184,11 @@ export default function CampaignDetailPage() {
     }
   };
 
-  const saveName = () => {
+  const saveИмя = () => {
     if (nameDraft.trim() && nameDraft !== data?.campaign.name) {
       patch({ name: nameDraft });
     }
-    setEditingName(false);
+    setEditingИмя(false);
   };
 
   const saveDesc = () => {
@@ -252,18 +252,18 @@ export default function CampaignDetailPage() {
         <div className="page-head">
           <div>
             <div className="row">
-              {editingName ? (
+              {editingИмя ? (
                 <input
                   className="input"
                   value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  onBlur={saveName}
-                  onKeyDown={(e) => e.key === "Enter" && saveName()}
+                  onChange={(e) => setИмяDraft(e.target.value)}
+                  onBlur={saveИмя}
+                  onKeyDown={(e) => e.key === "Enter" && saveИмя()}
                   autoFocus
                   style={{ fontSize: 22, fontWeight: 650, maxWidth: 400 }}
                 />
               ) : (
-                <div style={{ cursor: "pointer" }} onClick={() => setEditingName(true)}>
+                <div style={{ cursor: "pointer" }} onClick={() => setEditingИмя(true)}>
                   <BlurText
                     text={campaign.name}
                     className="page-title"
@@ -272,7 +272,7 @@ export default function CampaignDetailPage() {
                   />
                 </div>
               )}
-              <span className={`badge ${STATUS_STYLES[campaign.status] || "gray"}`}>{campaign.status}</span>
+              <span className={`badge ${STATUS_STYLES[campaign.status] || "gray"}`}>{({ Draft: "Черновик", Scheduled: "Запланирована", Running: "Запущена", Paused: "Приостановлена", Completed: "Завершена", Stopped: "Остановлена" } as Record<string, string>)[campaign.status] ?? campaign.status}</span>
             </div>
             {editingDesc ? (
               <textarea
@@ -286,88 +286,92 @@ export default function CampaignDetailPage() {
               />
             ) : (
               <p className="page-sub" style={{ cursor: "pointer" }} onClick={() => setEditingDesc(true)}>
-                <ShinyText text={campaign.description || "No description — click to add"} speed={3} />
+                <ShinyText text={campaign.description || "Добавьте описание — нажмите, чтобы изменить"} speed={3} />
               </p>
             )}
           </div>
-          <Link href="/campaigns" className="btn">Back</Link>
+          <Link href="/campaigns" className="btn">Назад к кампаниям</Link>
         </div>
 
         <FadeContent>
           <SpotlightCard>
             <div className="card" style={{ padding: 20 }}>
               <div className="row" style={{ gap: 32, flexWrap: "wrap" }}>
-                <StatBox label="Total leads" value={stats.total} />
-                <StatBox label="Sent" value={stats.sent} />
-                <StatBox label="Replied" value={stats.replied} />
-                <StatBox label="Bounced" value={stats.bounced} />
-                <StatBox label="Unsubscribed" value={stats.unsubscribed} />
+                <StatBox label="Всего лидов" value={stats.total} />
+                <StatBox label="Отправлено" value={stats.sent} />
+                <StatBox label="Ответили" value={stats.replied} />
+                <StatBox label="Возвраты" value={stats.bounced} />
+                <StatBox label="Отписались" value={stats.unsubscribed} />
               </div>
               <div className="divider" />
               <div className="row" style={{ gap: 8, fontSize: 14, color: "var(--muted)" }}>
                 <span>Дневной лимит: {campaign.dailyLimit}</span>
                 <span aria-hidden>|</span>
-                <span>Created: {formatDate(campaign.createdAt)}</span>
+                <span>Создана: {formatDate(campaign.createdAt)}</span>
               </div>
             </div>
           </SpotlightCard>
         </FadeContent>
 
-        <div className="row" style={{ gap: 8, margin: "16px 0" }}>
-          {(campaign.status === "Draft" || campaign.status === "Paused") && <><button className="btn" onClick={loadVersions}>Load versions</button><button className="btn" onClick={createVersion}>Create version</button><button className="btn" onClick={approveVersion} disabled={!activeVersionId}>Approve version</button></>}
+        <section className="next-step-card">
+          <div className="next-step-number">{campaign.status === "Draft" ? "1" : campaign.status === "Running" ? "3" : "2"}</div>
+          <div className="grow"><div className="section-label">Следующий шаг</div><strong>{campaign.status === "Draft" ? "Проверьте кампанию и одобрите версию" : campaign.status === "Running" ? "Кампания запущена — отправьте следующую партию" : "Возобновите кампанию, когда будете готовы"}</strong><p className="small muted">{campaign.status === "Draft" ? "Сначала создайте версию, запустите проверку и только потом начинайте отправку." : "Все действия выполняются вручную. Письма не отправляются без вашего подтверждения."}</p></div>
+        </section>
+        <div className="row campaign-actions" style={{ gap: 8, margin: "16px 0" }}>
+          {(campaign.status === "Draft" || campaign.status === "Paused") && <><button className="btn" onClick={loadVersions}>Загрузить версии</button><button className="btn" onClick={createVersion}>Создать версию</button><button className="btn" onClick={approveVersion} disabled={!activeVersionId}>Одобрить версию</button></>}
           {(campaign.status === "Draft" || campaign.status === "Paused") && (
             <button className="btn" onClick={runPreflight} disabled={!!busy}>
-              {busy === "preflight" ? <><span className="spinner" /> Checking...</> : "Run preflight"}
+              {busy === "preflight" ? <><span className="spinner" /> Проверка...</> : "Проверить кампанию"}
             </button>
           )}
           {campaign.status === "Draft" && (
             <button className="btn btn-primary" onClick={() => act("start")} disabled={!!busy}>
-              {busy === "start" ? <><span className="spinner" /> Starting...</> : "Start"}
+              {busy === "start" ? <><span className="spinner" /> Запуск...</> : "Запустить кампанию"}
             </button>
           )}
           {campaign.status === "Running" && (
             <>
               <button className="btn" onClick={() => act("pause")} disabled={!!busy}>
-                {busy === "pause" ? <><span className="spinner" /> Pausing...</> : "Pause"}
+                {busy === "pause" ? <><span className="spinner" /> Пауза...</> : "Пауза"}
               </button>
               <button className="btn btn-outline-danger" onClick={() => act("stop")} disabled={!!busy}>
-                {busy === "stop" ? <><span className="spinner" /> Stopping...</> : "Stop"}
+                {busy === "stop" ? <><span className="spinner" /> Остановка...</> : "Остановить"}
               </button>
               <button className="btn" onClick={() => act("send")} disabled={!!busy} style={{ marginLeft: "auto" }}>
-                {busy === "send" ? <><span className="spinner" /> Sending...</> : "Send batch"}
+                {busy === "send" ? <><span className="spinner" /> Отправка...</> : "Отправить партию"}
               </button>
             </>
           )}
           {campaign.status === "Paused" && (
             <>
               <button className="btn btn-primary" onClick={() => act("start")} disabled={!!busy}>
-                {busy === "start" ? <><span className="spinner" /> Resuming...</> : "Resume"}
+                {busy === "start" ? <><span className="spinner" /> Возобновление...</> : "Возобновить"}
               </button>
               <button className="btn btn-outline-danger" onClick={() => act("stop")} disabled={!!busy}>
-                {busy === "stop" ? <><span className="spinner" /> Stopping...</> : "Stop"}
+                {busy === "stop" ? <><span className="spinner" /> Остановка...</> : "Остановить"}
               </button>
             </>
           )}
         </div>
 
-        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Campaign versions</div>{approvalExpiresAt && <span className="badge green">Approved until {new Date(approvalExpiresAt).toLocaleTimeString()}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Version {version.version}</span><span className="muted">{new Date(version.createdAt).toLocaleString()}</span><code>{version.contentHash.slice(0, 10)}</code></button>)}</div></section>}
+        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Версии кампании</div>{approvalExpiresAt && <span className="badge green">Одобрено до {new Date(approvalExpiresAt).toLocaleTimeString()}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Version {version.version}</span><span className="muted">{new Date(version.createdAt).toLocaleString()}</span><code>{version.contentHash.slice(0, 10)}</code></button>)}</div></section>}
 
-        {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Send optimization</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Max messages</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="No cap" /></div><div className="field"><label>Window (days)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Optimize send time</label><button className="btn btn-primary" onClick={saveOptimization}>Save</button></div><div className="small muted">Contacts over the cap are skipped for this batch. Journey contacts are deferred until the next allowed time.</div></section>}
+        {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Оптимизация отправки</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Максимум сообщений</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="Без ограничения" /></div><div className="field"><label>Окно (дни)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Оптимизировать время отправки</label><button className="btn btn-primary" onClick={saveOptimization}>Save</button></div><div className="small muted">Контакты сверх лимита пропускаются в этой партии. Контакты из цепочек переносятся на ближайшее разрешённое время.</div></section>}
 
         {preflight && (
           <section className="card" style={{ padding: 18, marginBottom: 20, borderColor: preflight.ready ? "var(--green)" : "var(--red)" }}>
             <div className="row" style={{ marginBottom: 12 }}>
               <div className="grow">
-                <div className="section-label" style={{ marginBottom: 2 }}>Campaign preflight</div>
+                <div className="section-label" style={{ marginBottom: 2 }}>Проверка кампании</div>
                 <div className="small muted">Checked {new Date(preflight.checkedAt).toLocaleString()} · {preflight.errors} errors · {preflight.warnings} warnings</div>
               </div>
-              <span className={`badge ${preflight.ready ? "green" : "red"}`}>{preflight.ready ? "Ready" : "Blocked"}</span>
+              <span className={`badge ${preflight.ready ? "green" : "red"}`}>{preflight.ready ? "Готово" : "Заблокировано"}</span>
             </div>
-            {preflight.issues.length === 0 ? <div className="small">No issues found.</div> : <div className="stack" style={{ gap: 8 }}>
+            {preflight.issues.length === 0 ? <div className="small">Проблем не найдено.</div> : <div className="stack" style={{ gap: 8 }}>
               {preflight.issues.map((issue, index) => (
                 <div className="row small" key={`${issue.code}-${issue.source ?? "campaign"}-${index}`} style={{ alignItems: "start" }}>
                   <span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity}</span>
-                  <div><div>{issue.message}</div>{issue.source && <div className="muted">Source: {issue.source}</div>}</div>
+                  <div><div>{issue.message}</div>{issue.source && <div className="muted">Источник: {issue.source}</div>}</div>
                 </div>
               ))}
             </div>}
@@ -375,24 +379,24 @@ export default function CampaignDetailPage() {
         )}
 
         <section className="card" style={{ padding: 18, marginBottom: 20 }}>
-          <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Campaign intelligence</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Loading..." : "Refresh"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>AI insights</button></div>
-          {!analytics ? <div className="small muted">Load analytics after sending begins.</div> : <>
+          <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Аналитика кампании</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Загрузка..." : "Обновить"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>Рекомендации ИИ</button></div>
+          {!analytics ? <div className="small muted">Аналитика появится после начала отправки.</div> : <>
             <div className="row" style={{ gap: 18, flexWrap: "wrap" }}><Metric label="Открытия" value={`${analytics.rates.openRate}%`} /><Metric label="Переходы" value={`${analytics.rates.clickRate}%`} /><Metric label="Ответы" value={`${analytics.rates.replyRate}%`} /><Metric label="Возвраты" value={`${analytics.rates.bounceRate}%`} /></div>
             <div className="divider" />
-            <div className="section-label">Click heatmap</div>
-            {analytics.heatmap.length === 0 ? <div className="small muted">No click events yet. Link rewriting will be enabled with the HTML editor.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} clicks</span><span className="muted">{item.uniqueEmails} unique</span></div>)}</div>}
-            {analytics.byDay.length > 0 && <><div className="divider" /><div className="section-label">Daily trend</div><div className="stack" style={{ gap: 6 }}>{analytics.byDay.map((day) => <div className="row small" key={day.date}><span className="grow">{day.date}</span><span>{day.sent} sent</span><span>{day.opens} opens</span><span>{day.clicks} clicks</span><span>{day.replies} replies</span></div>)}</div></>}
-            {insights && <div className="card" style={{ padding: 12, marginTop: 14, background: "var(--surface-2)" }}><strong>AI summary</strong><p className="small">{insights.summary}</p><ul className="small">{insights.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}</ul></div>}
+            <div className="section-label">Карта кликов</div>
+            {analytics.heatmap.length === 0 ? <div className="small muted">Событий кликов пока нет.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} clicks</span><span className="muted">{item.uniqueEmails} unique</span></div>)}</div>}
+            {analytics.byDay.length > 0 && <><div className="divider" /><div className="section-label">Динамика по дням</div><div className="stack" style={{ gap: 6 }}>{analytics.byDay.map((day) => <div className="row small" key={day.date}><span className="grow">{day.date}</span><span>{day.sent} sent</span><span>{day.opens} opens</span><span>{day.clicks} clicks</span><span>{day.replies} replies</span></div>)}</div></>}
+            {insights && <div className="card" style={{ padding: 12, marginTop: 14, background: "var(--surface-2)" }}><strong>Итоги ИИ</strong><p className="small">{insights.summary}</p><ul className="small">{insights.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}</ul></div>}
           </>}
         </section>
 
-        <section className="card" style={{ padding: 18, marginBottom: 20 }}><div className="row"><div className="section-label grow">Cohorts and revenue</div><button className="btn btn-sm" onClick={loadCohorts}>Load cohorts</button></div>{cohorts.length === 0 ? <div className="small muted">Track contact.created and purchase events to see retention and revenue.</div> : <div className="stack" style={{ gap: 6, marginTop: 8 }}>{cohorts.map((cohort) => <div className="row small" key={cohort.cohort}><span className="grow">{cohort.cohort}</span><span>{cohort.contacts} contacts</span><span>{cohort.retentionRate}% retention</span><span>{cohort.purchases} purchases</span><span>{cohort.revenue.toFixed(2)} revenue</span><span>{cohort.revenuePerContact.toFixed(2)}/contact</span></div>)}</div>}</section>
+        <section className="card" style={{ padding: 18, marginBottom: 20 }}><div className="row"><div className="section-label grow">Когорты и выручка</div><button className="btn btn-sm" onClick={loadCohorts}>Загрузить когорты</button></div>{cohorts.length === 0 ? <div className="small muted">Отслеживайте события контактов и покупок, чтобы видеть удержание и выручку.</div> : <div className="stack" style={{ gap: 6, marginTop: 8 }}>{cohorts.map((cohort) => <div className="row small" key={cohort.cohort}><span className="grow">{cohort.cohort}</span><span>{cohort.contacts} contacts</span><span>{cohort.retentionRate}% retention</span><span>{cohort.purchases} purchases</span><span>{cohort.revenue.toFixed(2)} revenue</span><span>{cohort.revenuePerContact.toFixed(2)}/contact</span></div>)}</div>}</section>
 
         {variants.length > 0 && (
           <FadeContent>
             <section style={{ marginBottom: 20 }}>
               <div className="row" style={{ marginBottom: 8 }}>
-                <div className="section-label" style={{ marginBottom: 0 }}>A/B Variants</div>
+                <div className="section-label" style={{ marginBottom: 0 }}>A/B варианты</div>
                 <span className="grow" />
                 <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>+ Добавить вариант</button>
               </div>
@@ -415,9 +419,9 @@ export default function CampaignDetailPage() {
         {variantOpen && (
           <div className="modal-overlay" onClick={() => setVariantOpen(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <div className="section-label" style={{ marginBottom: 12 }}>Add A/B variant</div>
+              <div className="section-label" style={{ marginBottom: 12 }}>Добавить A/B вариант</div>
               <div className="field">
-                <label>Variant name</label>
+                <label>Название варианта</label>
                 <input className="input" value={variantForm.name} onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })} placeholder="Variant B" />
               </div>
               <div className="field">
@@ -430,7 +434,7 @@ export default function CampaignDetailPage() {
               </div>
               <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                 <button className="btn btn-ghost" onClick={() => setVariantOpen(false)}>Отмена</button>
-                <button className="btn btn-primary" disabled={!variantForm.subject.trim() || !variantForm.body.trim()} onClick={saveVariant}>Save variant</button>
+                <button className="btn btn-primary" disabled={!variantForm.subject.trim() || !variantForm.body.trim()} onClick={saveVariant}>Сохранить вариант</button>
               </div>
             </div>
           </div>
@@ -442,16 +446,16 @@ export default function CampaignDetailPage() {
             <div className="card" style={{ padding: 0, overflowX: "auto" }}>
               {leads.length === 0 ? (
                 <div className="empty-state" style={{ padding: 24 }}>
-                  <div className="es-title">No leads yet</div>
-                  <div className="es-sub">Leads will appear here once the campaign starts.</div>
+                  <div className="es-title">Лидов пока нет</div>
+                  <div className="es-sub">Лиды появятся здесь после запуска кампании.</div>
                 </div>
               ) : (
                 <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
-                      <th style={{ padding: "10px 16px" }}>Name</th>
-                      <th style={{ padding: "10px 16px" }}>Email</th>
-                      <th style={{ padding: "10px 16px" }}>Status</th>
+                      <th style={{ padding: "10px 16px" }}>Имя</th>
+                      <th style={{ padding: "10px 16px" }}>Электронная почта</th>
+                      <th style={{ padding: "10px 16px" }}>Статус</th>
                       <th style={{ padding: "10px 16px" }}>Sent</th>
                     </tr>
                   </thead>

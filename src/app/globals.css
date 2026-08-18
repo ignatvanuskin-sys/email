@@ -185,6 +185,11 @@ button {
 .demo-feature h3 { margin: 16px 0 8px; font-size: 18px; }
 .demo-feature p { min-height: 48px; color: var(--text-muted); }
 .demo-feature-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; color: var(--accent-strong); background: var(--accent-soft); font-size: 22px; box-shadow: 0 0 28px rgba(255,107,53,0.18); }
+.next-step-card { display: flex; align-items: flex-start; gap: 14px; padding: 20px; margin: 18px 0; border: 1px solid rgba(255,107,53,0.28); border-radius: 16px; background: linear-gradient(110deg, rgba(255,107,53,0.14), rgba(255,107,53,0.04)); }
+.next-step-number { display: grid; place-items: center; flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; color: #fff; background: var(--accent); font-weight: 800; box-shadow: 0 0 22px rgba(255,107,53,0.45); }
+.next-step-card .section-label { margin-bottom: 4px; color: var(--accent-strong); }
+.next-step-card p { margin: 5px 0 0; }
+.campaign-actions { flex-wrap: wrap; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
 
 .page-head {
   display: flex;
