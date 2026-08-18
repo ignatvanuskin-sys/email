@@ -3,6 +3,7 @@ import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { Shell } from "@/components/Shell";
 import { ToastProvider } from "@/components/Toast";
+import { DemoShell } from "@/components/DemoShell";
 
 export const metadata: Metadata = {
   title: "ClipReach — персональные рассылки",
@@ -20,9 +21,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Shell email={user.email} initialPaused={user.outreachPaused}>
               {children}
             </Shell>
-          ) : (
-            children
-          )}
+          ) : <DemoShell>{children}</DemoShell>}
         </ToastProvider>
       </body>
     </html>

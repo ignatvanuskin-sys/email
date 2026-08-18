@@ -40,6 +40,12 @@ export default function HomePage() {
     return () => { active = false; };
   }, []);
 
+  const isUnauthorized = error.toLowerCase().includes("unauthorized") || error.includes("401");
+
+  if (isUnauthorized) {
+    return <DemoDashboard />;
+  }
+
   useEffect(() => {
     let active = true;
     api<{ onboarding: NonNullable<typeof onboarding> }>("/api/onboarding").then((result) => { if (active) setOnboarding(result.onboarding); }).catch(() => {});
@@ -258,6 +264,45 @@ export default function HomePage() {
           </SpotlightCard>
         </section>
       </FadeContent>
+    </div>
+  );
+}
+
+function DemoDashboard() {
+  const metrics = [
+    ["Лиды", "1 248", "+18,4%"],
+    ["Отправлено писем", "8 420", "+24,8%"],
+    ["Ответы", "12,6%", "+3,2%"],
+    ["Клиенты", "86", "+11,5%"],
+  ];
+
+  return (
+    <div className="demo-dashboard">
+      <div className="page-head">
+        <div>
+          <div className="hero-eyebrow">ПУБЛИЧНЫЙ ПРОСМОТР</div>
+          <h1 className="page-title" style={{ marginTop: 10 }}>Ваш центр продаж</h1>
+          <p className="page-sub">Посмотрите, как ClipReach превращает холодные контакты в живые диалоги.</p>
+        </div>
+        <div className="row">
+          <Link href="/login" className="btn">Войти</Link>
+          <Link href="/register" className="btn btn-primary">Начать бесплатно</Link>
+        </div>
+      </div>
+      <section className="hero-panel">
+        <div className="hero-eyebrow">CLIPREACH / DEMO WORKSPACE</div>
+        <h2 className="page-title" style={{ marginTop: 12 }}>Умные рассылки,<br />которые звучат по-человечески.</h2>
+        <p className="hero-copy">Импортируйте лидов, создавайте персональные письма с ИИ и управляйте всей коммуникацией в одном красивом рабочем пространстве.</p>
+        <div className="hero-orbit" aria-hidden />
+      </section>
+      <div className="metric-grid demo-metrics">
+        {metrics.map(([label, value, trend]) => <div className="kpi" key={label}><div className="kpi-icon">✦</div><div className="label">{label}</div><div className="value">{value}</div><div className="kpi-trend" style={{ color: "var(--green)" }}>{trend} за 30 дней</div></div>)}
+      </div>
+      <div className="demo-grid">
+        <section className="card demo-feature"><div className="demo-feature-icon">◈</div><h3>Персонализация с ИИ</h3><p>Письма адаптируются под нишу, компанию и контекст каждого лида.</p><Link href="/register" className="btn btn-sm">Попробовать генератор</Link></section>
+        <section className="card demo-feature"><div className="demo-feature-icon">◎</div><h3>Безопасная отправка</h3><p>Доставляемость, лимиты и согласование встроены в каждый сценарий.</p><Link href="/register" className="btn btn-sm">Создать рабочее место</Link></section>
+        <section className="card demo-feature"><div className="demo-feature-icon">↗</div><h3>Вся воронка в одном месте</h3><p>Ответы, повторные контакты и аналитика всегда перед глазами.</p><Link href="/register" className="btn btn-sm">Открыть возможности</Link></section>
+      </div>
     </div>
   );
 }
