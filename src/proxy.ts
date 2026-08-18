@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const COOKIE = "clipreach_session";
 
 const PUBLIC_PATHS = new Set([
+  "/",
   "/login",
   "/register",
 ]);
