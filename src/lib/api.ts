@@ -37,9 +37,8 @@ export function serverError(message = "Something went wrong"): NextResponse {
   return apiError(message, 500);
 }
 
-export function apiError(message: string, status: number, code = status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST"): NextResponse {
-  const requestId = randomUUID();
-  return NextResponse.json({ error: message, code, requestId }, { status, headers: { "x-request-id": requestId } });
+export function apiError(message: string, status: number, code = status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST", requestId = randomUUID()): NextResponse {
+  return NextResponse.json({ error: message, code, requestId }, { status, headers: { "x-request-id": requestId, "cache-control": "no-store" } });
 }
 
 export function ok(data: unknown, status = 200): NextResponse {
@@ -47,13 +46,12 @@ export function ok(data: unknown, status = 200): NextResponse {
 }
 
 export function handleError(err: unknown): NextResponse {
+  const requestId = randomUUID();
   if (err instanceof ZodError) {
-    return badRequest(err.issues.map((i) => i.message).join("; "));
+    return apiError(err.issues.map((i) => i.message).join("; "), 400, "BAD_REQUEST", requestId);
   }
-  if (err instanceof Error && err.message) {
-    return badRequest(err.message);
-  }
-  return serverError();
+  console.error(`[api-error:${requestId}]`, err);
+  return apiError("Request could not be processed", 500, "INTERNAL_ERROR", requestId);
 }
 
 /** Read and JSON-parse a request body safely. */

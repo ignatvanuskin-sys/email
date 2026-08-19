@@ -92,6 +92,10 @@ async function main() {
   await request('anon', 'GET', '/api/auth/me', undefined, 401, 'unauthenticated session denied');
   await register('A');
   await register('B');
+  await request('A', 'PATCH', '/api/billing', { plan: 'Pro' }, 402, 'self-service paid plan escalation denied');
+  const invitation = await request('A', 'POST', '/api/workspace/members', { email: `invite-${run}@example.test`, role: 'Viewer' }, 201, 'workspace invite created without bearer token response');
+  assert.equal(Object.prototype.hasOwnProperty.call(invitation.data, 'token'), false);
+  await request('anon', 'POST', '/api/telegram/webhook', { update_id: 1, message: { chat: { id: 1 }, text: 'unauthorized' } }, 401, 'Telegram webhook fails closed without configured secret');
 
   await request('A', 'POST', '/api/auth/logout', undefined, 200, 'logout invalidated session');
   await request('A', 'GET', '/api/auth/me', undefined, 401, 'logged-out session denied');
@@ -181,11 +185,14 @@ async function main() {
   }, 201, 'filtered segment created');
   ids.A.segment = segment.data.segment.id;
   await request('A', 'PATCH', `/api/campaigns/${ids.A.campaign}`, { templateId: ids.A.template, segmentId: ids.A.segment }, 200, 'campaign linked to owned template and segment');
+  const campaignVersion = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/versions`, undefined, 201, 'campaign version created before approval');
+  await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/versions/activate`, { versionId: campaignVersion.data.version.id }, 200, 'campaign version activated before approval');
+  await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/approve`, undefined, 200, 'active campaign version approved before start');
   const startedCampaign = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/start`, undefined, 200, 'campaign starts with segment filter');
   assert.equal(startedCampaign.data.leads, 1);
-  const approvalGate = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/send`, undefined, 200, 'campaign send creates approval-required drafts');
-  assert.equal(approvalGate.data.sent, 0);
-  assert.ok(approvalGate.data.approvalRequired >= 1);
+  const dispatch = await request('A', 'POST', `/api/campaigns/${ids.A.campaign}/send`, undefined, 200, 'approved campaign dispatch queues only scoped pending leads');
+  assert.equal(dispatch.data.queued, 1);
+  assert.equal(dispatch.data.remaining, 0);
 
   const draft = await analyzeDraft('A', ids.A.primaryLead);
   ids.A.email = draft.id;
@@ -205,7 +212,7 @@ async function main() {
   assert.equal(detailAfterSend.data.emails[0].status, 'Sent');
   assert.equal(detailAfterSend.data.followUps.filter(x => x.status === 'Pending').length, 1);
   ids.A.followUp = detailAfterSend.data.followUps[0].id;
-  const bounceBody = { emailMessageId: ids.A.email, event: 'bounce' };
+  const bounceBody = { eventId: `smoke-bounce-${run}`, emailMessageId: ids.A.email, event: 'bounce' };
   await request('anon', 'POST', '/api/bounces', bounceBody, 200, 'signed bounce webhook accepted', signedWebhookHeaders(bounceBody));
   const bouncedSuppressions = await request('A', 'GET', '/api/suppressions', undefined, 200, 'signed bounce creates account-scoped suppression');
   assert.ok(bouncedSuppressions.data.entries.some((entry) => entry.email === ids.A.primaryEmail));

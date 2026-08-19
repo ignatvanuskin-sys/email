@@ -5,12 +5,16 @@ import { hashOAuthState } from "../src/lib/oauthState";
 import { generateAutomation } from "../src/lib/aiAutomation";
 
 describe("production integration security", () => {
-  it("verifies Stripe-like timestamped signatures", () => {
+  it("verifies fresh Stripe-like signatures and rejects stale replays", () => {
     const payload = "{\"type\":\"customer.subscription.updated\"}";
-    const timestamp = "1700000000";
+    const now = Math.floor(Date.now() / 1000);
+    const timestamp = String(now);
     const signature = `t=${timestamp},v1=${createHmac("sha256", "stripe-secret").update(`${timestamp}.${payload}`).digest("hex")}`;
-    expect(verifyStripeLikeSignature(payload, signature, "stripe-secret")).toBe(true);
-    expect(verifyStripeLikeSignature(`${payload}x`, signature, "stripe-secret")).toBe(false);
+    expect(verifyStripeLikeSignature(payload, signature, "stripe-secret", now)).toBe(true);
+    expect(verifyStripeLikeSignature(`${payload}x`, signature, "stripe-secret", now)).toBe(false);
+    const staleTimestamp = String(now - 301);
+    const staleSignature = `t=${staleTimestamp},v1=${createHmac("sha256", "stripe-secret").update(`${staleTimestamp}.${payload}`).digest("hex")}`;
+    expect(verifyStripeLikeSignature(payload, staleSignature, "stripe-secret", now)).toBe(false);
   });
 
   it("hashes OAuth state without exposing raw value", () => {

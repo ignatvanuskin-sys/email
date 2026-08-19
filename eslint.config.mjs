@@ -1,8 +1,7 @@
-import { FlatCompat } from "@eslint/eslintrc";
-
-const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
 const config = [
+  ...nextCoreWebVitals,
   {
     ignores: [
       ".next/**",
@@ -17,12 +16,12 @@ const config = [
       "scripts/final-recovery-verify.cjs",
     ],
   },
-  ...compat.extends("next/core-web-vitals"),
   {
     rules: {
       "import/no-anonymous-default-export": "off",
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/refs": "off",
+      "react-hooks/purity": "off",
     },
   },
 ];
