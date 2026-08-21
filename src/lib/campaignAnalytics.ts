@@ -12,35 +12,60 @@ const percent = (value: number, base: number) => base > 0 ? Math.round((value / 
 export async function aggregateCampaignAnalytics(userId: string, campaignId: string): Promise<CampaignAnalytics | null> {
   const campaign = await prisma.campaign.findFirst({ where: { id: campaignId, userId }, select: { id: true } });
   if (!campaign) return null;
-  const [emails, replies, events] = await Promise.all([
-    prisma.emailMessage.findMany({ where: { campaignId }, select: { id: true, status: true, sentAt: true } }),
-    prisma.reply.findMany({ where: { userId, emailMessage: { campaignId } }, select: { receivedAt: true } }),
-    prisma.emailTrackingEvent.findMany({ where: { campaignId }, select: { emailId: true, type: true, elementId: true, url: true, occurredAt: true } }),
+
+  const [emailCounts, uniqueEngagements, eventCounts, heatmapCounts, uniqueHeatmapContacts, sentByMoment, eventsByMoment, repliesByMoment, replied] = await Promise.all([
+    prisma.emailMessage.groupBy({ by: ["status"], where: { campaignId, userId }, _count: { _all: true } }),
+    prisma.emailTrackingEvent.findMany({ where: { campaignId, type: { in: ["open", "click"] } }, select: { emailId: true, type: true }, distinct: ["emailId", "type"] }),
+    prisma.emailTrackingEvent.groupBy({ by: ["type"], where: { campaignId }, _count: { _all: true } }),
+    prisma.emailTrackingEvent.groupBy({ by: ["elementId", "url"], where: { campaignId, type: "click" }, _count: { _all: true } }),
+    prisma.emailTrackingEvent.findMany({ where: { campaignId, type: "click" }, select: { emailId: true, elementId: true, url: true }, distinct: ["emailId", "elementId", "url"] }),
+    prisma.emailMessage.groupBy({ by: ["sentAt"], where: { campaignId, userId, status: "Sent", sentAt: { not: null } }, _count: { _all: true } }),
+    prisma.emailTrackingEvent.groupBy({ by: ["type", "occurredAt"], where: { campaignId, type: { in: ["open", "click"] } }, _count: { _all: true } }),
+    prisma.reply.groupBy({ by: ["receivedAt"], where: { userId, emailMessage: { campaignId } }, _count: { _all: true } }),
+    prisma.reply.count({ where: { userId, emailMessage: { campaignId } } }),
   ]);
-  const sent = emails.filter((email) => email.status === "Sent").length;
-  const opened = new Set(events.filter((event) => event.type === "open").map((event) => event.emailId)).size;
-  const clicked = new Set(events.filter((event) => event.type === "click").map((event) => event.emailId)).size;
-  const replied = replies.length;
-  const bounced = emails.filter((email) => email.status === "Bounced").length;
-  const failed = emails.filter((email) => email.status === "Failed").length;
-  const unsubscribed = emails.filter((email) => email.status === "Unsubscribed").length;
-  const heatmapMap = new Map<string, { url: string | null; clicks: number; emails: Set<string> }>();
-  for (const event of events.filter((item) => item.type === "click")) {
-    const key = event.elementId || event.url || "unknown";
-    const current = heatmapMap.get(key) ?? { url: event.url, clicks: 0, emails: new Set<string>() };
-    current.clicks++;
-    current.emails.add(event.emailId);
-    heatmapMap.set(key, current);
+
+  const countStatus = (status: string) => emailCounts.find((row) => row.status === status)?._count._all ?? 0;
+  const sent = countStatus("Sent");
+  const bounced = countStatus("Bounced");
+  const failed = countStatus("Failed");
+  const unsubscribed = countStatus("Unsubscribed");
+  const delivered = countStatus("Sent") + countStatus("Delivered");
+  const opened = uniqueEngagements.filter((event) => event.type === "open").length;
+  const clicked = uniqueEngagements.filter((event) => event.type === "click").length;
+  const heatmapContactCounts = new Map<string, number>();
+  for (const event of uniqueHeatmapContacts) {
+    const key = heatmapKey(event.elementId, event.url);
+    heatmapContactCounts.set(key, (heatmapContactCounts.get(key) ?? 0) + 1);
   }
+  const heatmap = heatmapCounts
+    .map((row) => ({
+      elementId: row.elementId || row.url || "unknown",
+      url: row.url,
+      clicks: row._count._all,
+      uniqueEmails: heatmapContactCounts.get(heatmapKey(row.elementId, row.url)) ?? 0,
+    }))
+    .sort((a, b) => b.clicks - a.clicks);
+
   const dayMap = new Map<string, { sent: number; opens: number; clicks: number; replies: number }>();
-  const day = (date: Date) => date.toISOString().slice(0, 10);
-  for (const email of emails) if (email.sentAt) { const value = dayMap.get(day(email.sentAt)) ?? { sent: 0, opens: 0, clicks: 0, replies: 0 }; value.sent++; dayMap.set(day(email.sentAt), value); }
-  for (const event of events) { const value = dayMap.get(day(event.occurredAt)) ?? { sent: 0, opens: 0, clicks: 0, replies: 0 }; if (event.type === "open") value.opens++; if (event.type === "click") value.clicks++; dayMap.set(day(event.occurredAt), value); }
-  for (const reply of replies) { const value = dayMap.get(day(reply.receivedAt)) ?? { sent: 0, opens: 0, clicks: 0, replies: 0 }; value.replies++; dayMap.set(day(reply.receivedAt), value); }
+  const addDay = (date: Date, field: "sent" | "opens" | "clicks" | "replies", amount: number) => {
+    const key = date.toISOString().slice(0, 10);
+    const value = dayMap.get(key) ?? { sent: 0, opens: 0, clicks: 0, replies: 0 };
+    value[field] += amount;
+    dayMap.set(key, value);
+  };
+  for (const row of sentByMoment) if (row.sentAt) addDay(row.sentAt, "sent", row._count._all);
+  for (const row of eventsByMoment) addDay(row.occurredAt, row.type === "open" ? "opens" : "clicks", row._count._all);
+  for (const row of repliesByMoment) addDay(row.receivedAt, "replies", row._count._all);
+
   return {
-    totals: { sent, delivered: emails.filter((email) => ["Sent", "Delivered"].includes(email.status)).length, bounced, failed, opened, clicked, replied, unsubscribed },
+    totals: { sent, delivered, bounced, failed, opened, clicked, replied, unsubscribed },
     rates: { openRate: percent(opened, sent), clickRate: percent(clicked, sent), replyRate: percent(replied, sent), bounceRate: percent(bounced, sent), unsubscribeRate: percent(unsubscribed, sent) },
-    heatmap: [...heatmapMap.entries()].sort(([, a], [, b]) => b.clicks - a.clicks).map(([elementId, value]) => ({ elementId, url: value.url, clicks: value.clicks, uniqueEmails: value.emails.size })),
+    heatmap,
     byDay: [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, value]) => ({ date, ...value })),
   };
+}
+
+function heatmapKey(elementId: string | null, url: string | null): string {
+  return `${elementId ?? ""}\u0000${url ?? ""}`;
 }

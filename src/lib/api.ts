@@ -3,7 +3,6 @@ import { ZodError } from "zod";
 import type { User } from "@prisma/client";
 import { getCurrentUser } from "./auth";
 import { randomUUID } from "node:crypto";
-import { env } from "./env";
 
 /** Returns the current user or null in an API context. */
 export async function getApiUser(): Promise<User | null> {
@@ -14,16 +13,7 @@ export function unauthorized(): NextResponse {
   return apiError("Требуется авторизация", 401);
 }
 
-export function assertSameOrigin(req: Request): NextResponse | null {
-  const origin = req.headers.get("origin");
-  if (!origin) return null;
-  try {
-    if (new URL(origin).origin !== new URL(env.APP_URL).origin) return apiError("Недопустимый источник запроса", 403, "CSRF_BLOCKED");
-  } catch {
-    return apiError("Недопустимый источник запроса", 403, "CSRF_BLOCKED");
-  }
-  return null;
-}
+export { assertSameOrigin } from "./csrf";
 
 export function badRequest(message: string): NextResponse {
   return apiError(message, 400);

@@ -23,6 +23,19 @@ export function verifySignature(value: string, signature: string | null, secret 
   return safeEqual(signature, hmac(value, secret));
 }
 
+export function signWorkerRequest(timestamp: string, nonce: string, rawBody: string): string {
+  if (!env.CRON_SECRET) throw new Error("Worker signing secret is not configured");
+  return hmac(`${timestamp}.${nonce}.${rawBody}`, env.CRON_SECRET);
+}
+
+export function verifyWorkerRequest(rawBody: string, timestamp: string | null, nonce: string | null, signature: string | null, nowSeconds = Math.floor(Date.now() / 1000), toleranceSeconds = 300): boolean {
+  if (!timestamp || !nonce || !signature || !env.CRON_SECRET || nonce.length < 16 || nonce.length > 200) return false;
+  const parsedTimestamp = Number(timestamp);
+  if (!Number.isInteger(parsedTimestamp) || Math.abs(nowSeconds - parsedTimestamp) > toleranceSeconds) return false;
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(signature)) return false;
+  return safeEqual(signature, signWorkerRequest(timestamp, nonce, rawBody));
+}
+
 export function signBouncePayload(timestamp: string, rawBody: string): string {
   if (!env.BOUNCE_WEBHOOK_SECRET) throw new Error("Bounce webhook secret is not configured");
   return hmac(`${timestamp}.${rawBody}`, env.BOUNCE_WEBHOOK_SECRET);

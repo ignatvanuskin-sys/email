@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, ok, readJson, unauthorized, notFound, badRequest } from "@/lib/api";
-import { providerConnectSchema } from "@/lib/validation";
+import { providerConnectSchema, smtpConfigSchema } from "@/lib/validation";
 import { decryptCredentials, encryptCredentials } from "@/lib/crypto";
 
 function safeConfig(encrypted: string): Record<string, unknown> {
@@ -11,6 +11,7 @@ function safeConfig(encrypted: string): Record<string, unknown> {
       port: typeof parsed.port === "number" ? parsed.port : undefined,
       user: typeof parsed.user === "string" ? parsed.user : undefined,
       from: typeof parsed.from === "string" ? parsed.from : undefined,
+      secure: typeof parsed.secure === "boolean" ? parsed.secure : undefined,
       model: typeof parsed.model === "string" ? parsed.model : undefined,
     };
   } catch {
@@ -31,19 +32,26 @@ function safeProviderConfig(encrypted: string) {
   return safeConfig(encrypted);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
-    console.info("[providers] GET", { userId: user.id });
+    const url = new URL(req.url);
+    const limit = parseLimit(url.searchParams.get("limit"));
+    const cursorValue = url.searchParams.get("cursor");
+    const cursor = cursorValue ? parseCursor(cursorValue) : null;
+    if (cursorValue && !cursor) return badRequest("Invalid cursor");
     const providers = await prisma.provider.findMany({
-      where: { userId: user.id },
-      orderBy: [{ kind: "asc" }, { isActive: "desc" }, { createdAt: "desc" }],
+      where: { userId: user.id, ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
-    // The API intentionally returns metadata only. The database remains the
-    // source of truth; credentials are never sent to the browser.
+    const hasMore = providers.length > limit;
+    const visible = hasMore ? providers.slice(0, limit) : providers;
+    const last = visible.at(-1);
+    const nextCursor = hasMore && last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null;
     return ok({
-      providers: providers.map((p) => ({
+      providers: visible.map((p) => ({
         id: p.id,
         kind: p.kind,
         platform: safePlatform(p.configEncrypted),
@@ -53,11 +61,17 @@ export async function GET() {
         safeConfig: safeProviderConfig(p.configEncrypted),
         createdAt: p.createdAt.toISOString(),
       })),
+      nextCursor,
+      hasMore,
     });
   } catch (err) {
     return handleError(err);
   }
 }
+
+function parseLimit(value: string | null): number { const parsed = Number(value ?? 50); return Number.isInteger(parsed) ? Math.max(1, Math.min(100, parsed)) : 50; }
+function encodeCursor(cursor: { createdAt: string; id: string }): string { return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url"); }
+function parseCursor(value: string): { createdAt: Date; id: string } | null { try { const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { createdAt?: unknown; id?: unknown }; if (typeof parsed.createdAt !== "string" || typeof parsed.id !== "string" || !parsed.id) return null; const createdAt = new Date(parsed.createdAt); return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id: parsed.id }; } catch { return null; } }
 
 export async function POST(req: Request) {
   try {
@@ -85,6 +99,10 @@ export async function POST(req: Request) {
       }
       // Never replace a saved model with an empty model during a metadata-only update.
       if (!config.model && previous.model) config.model = previous.model;
+    }
+    if (d.platform === "SMTP") {
+      const smtp = smtpConfigSchema.parse(config);
+      Object.assign(config, smtp);
     }
 
     // Provider settings are an upsert per account and kind. This preserves the

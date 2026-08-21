@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, ok, unauthorized, badRequest } from "@/lib/api";
 import { autoMapColumns, googleSheetCsvUrl, mapAndValidateRows, parseCsv, parseXlsx, type ImportMapping, type ImportRow, MAX_IMPORT_BYTES } from "@/lib/csv";
-import { rateLimit } from "@/lib/rateLimit";
+import { requestRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "lead-import-preview", 12, 60 * 60 * 1000);
+  const limited = await requestRateLimit(req, "lead-import-preview", 12, 60 * 60 * 1000);
   if (limited) return limited;
   try {
     const user = await getApiUser();

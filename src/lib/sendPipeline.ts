@@ -30,11 +30,24 @@ export type JourneySendPayload = {
 export type SendPayload = Partial<CampaignSendPayload> & Partial<JourneySendPayload> & {
   emailId?: string;
   telegramChatId?: string;
+  dedupeKey?: string;
+  journeyAdvanceTo?: number;
+  journeyNextRunAt?: string | null;
+  journeyComplete?: boolean;
   channel?: string;
 };
 
-export async function enqueueSend(userId: string, type: "campaign" | "journey", payload: SendPayload): Promise<void> {
-  await prisma.sendJob.create({ data: { userId, type, payload: JSON.stringify(payload), status: "Queued" } });
+export async function enqueueSend(userId: string, type: "campaign" | "journey", payload: SendPayload): Promise<boolean> {
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { outreachPaused: true } });
+  if (!owner) throw new Error("Outbound owner not found");
+  if (owner.outreachPaused) return false;
+  try {
+    await prisma.sendJob.create({ data: { userId, type, dedupeKey: payload.dedupeKey ?? null, payload: JSON.stringify(payload), status: "Queued" } });
+    return true;
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "P2002" && payload.dedupeKey) return true;
+    throw error;
+  }
 }
 
 export async function processSendJobs(limit = 25): Promise<{ processed: number; sent: number; failed: number }> {
@@ -67,6 +80,12 @@ export async function processSendJobs(limit = 25): Promise<{ processed: number; 
     let payload = payloadFor(job);
     try {
       payload = JSON.parse(job.payload) as SendPayload;
+      const pauseBeforeWork = await prisma.user.findFirst({ where: { id: job.userId, outreachPaused: false }, select: { id: true } });
+      if (!pauseBeforeWork) {
+        await deferJob(job.id, "Outreach paused");
+        continue;
+      }
+
       if (!payload.leadId) {
         await failJob(job.id, attempts, job.maxAttempts, "Invalid recipient binding");
         failed++;
@@ -161,6 +180,11 @@ export async function processSendJobs(limit = 25): Promise<{ processed: number; 
         trackingUrl: (url, index) => `${appUrl}/api/tracking/click?token=${encodeURIComponent(trackingToken)}&element=link-${index}&url=${encodeURIComponent(url)}`,
         pixelUrl: `${appUrl}/api/tracking/open?token=${encodeURIComponent(trackingToken)}`,
       });
+      const pauseImmediatelyBeforeSend = await prisma.user.findFirst({ where: { id: job.userId, outreachPaused: false }, select: { id: true } });
+      if (!pauseImmediatelyBeforeSend) {
+        await deferJob(job.id, "Outreach paused");
+        continue;
+      }
       const result = await sendEmail(job.userId, { to: lead.email, subject, body: emailWithUnsub, html: rendered.html });
       if (!result.ok) throw new Error("Email delivery failed");
       await prisma.emailMessage.updateMany({ where: { id: emailRecord.id, userId: job.userId, leadId: lead.id }, data: { status: EMAIL_STATUS.SENT, providerMessageId: result.providerMessageId, sentAt: new Date(), trackingToken } });
@@ -191,9 +215,12 @@ async function completeJob(jobId: string, payload: SendPayload, userId: string, 
   if (payload.enrollmentId && payload.leadId) {
     const enrollment = await prisma.journeyEnrollment.findFirst({ where: { id: payload.enrollmentId, userId, leadId: payload.leadId, sequence: { userId } }, include: { sequence: { include: { steps: { where: { enabled: true }, orderBy: { position: "asc" } } } } } });
     if (enrollment) {
-      const nextIndex = enrollment.currentStep + 1;
+      const nextIndex = typeof payload.journeyAdvanceTo === "number" ? payload.journeyAdvanceTo : enrollment.currentStep + 1;
       const nextStep = enrollment.sequence.steps[nextIndex];
-      await prisma.journeyEnrollment.updateMany({ where: { id: enrollment.id, userId, leadId: payload.leadId }, data: nextStep ? { currentStep: nextIndex, nextRunAt: new Date(Date.now() + nextStep.delayDays * 86_400_000), lastError: null } : { currentStep: nextIndex, status: "Completed", nextRunAt: null, lastError: null } });
+      const requestedNextRun = payload.journeyNextRunAt ? new Date(payload.journeyNextRunAt) : null;
+      const nextRunAt = requestedNextRun && Number.isFinite(requestedNextRun.getTime()) ? requestedNextRun : nextStep ? new Date(Date.now() + nextStep.delayDays * 86_400_000) : null;
+      const complete = payload.journeyComplete ?? !nextStep;
+      await prisma.journeyEnrollment.updateMany({ where: { id: enrollment.id, userId, leadId: payload.leadId }, data: complete ? { currentStep: nextIndex, status: "Completed", nextRunAt: null, claimToken: null, claimUntil: null, lastError: null } : { currentStep: nextIndex, status: "Active", nextRunAt, claimToken: null, claimUntil: null, lastError: null } });
     }
   }
 }
@@ -210,6 +237,10 @@ async function failPayload(jobId: string, payload: SendPayload, userId: string, 
   if (payload.emailId && payload.leadId) await prisma.emailMessage.updateMany({ where: { id: payload.emailId, userId, leadId: payload.leadId }, data: { status: "Failed", errorMessage: reason.slice(0, 200) } });
   if (payload.enrollmentId && payload.leadId) await prisma.journeyEnrollment.updateMany({ where: { id: payload.enrollmentId, userId, leadId: payload.leadId }, data: { status: "Failed", nextRunAt: null, lastError: reason.slice(0, 200) } });
   void jobId;
+}
+
+async function deferJob(jobId: string, reason: string) {
+  await prisma.sendJob.update({ where: { id: jobId }, data: { status: "Queued", nextRunAt: new Date(Date.now() + 60_000), lockUntil: null, lastError: reason.slice(0, 200) } });
 }
 
 async function failJob(jobId: string, attempts: number, maxAttempts: number, reason: string) {

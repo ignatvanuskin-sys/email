@@ -18,6 +18,11 @@ export async function authenticateApiKey(req: Request, requiredScope: string) {
   if (!record || (record.expiresAt && record.expiresAt <= new Date())) return null;
   const scopes = new Set(record.scopes.split(",").map((scope) => scope.trim()));
   if (!scopes.has(requiredScope) && !scopes.has("*")) return null;
-  await prisma.apiKey.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } });
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 5 * 60 * 1000);
+  await prisma.apiKey.updateMany({
+    where: { id: record.id, OR: [{ lastUsedAt: null }, { lastUsedAt: { lt: cutoff } }] },
+    data: { lastUsedAt: now },
+  });
   return record.user;
 }

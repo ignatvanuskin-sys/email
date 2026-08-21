@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createUnsubscribeToken, verifyUnsubscribeToken } from "../src/lib/unsubscribe";
 import { rateLimit } from "../src/lib/rateLimit";
+import { signWorkerRequest, verifyWorkerRequest } from "../src/lib/webhookSecurity";
 
 describe("scoped unsubscribe tokens", () => {
   afterEach(() => vi.useRealTimers());
@@ -8,6 +9,11 @@ describe("scoped unsubscribe tokens", () => {
   it("round-trips a signed account/lead token", () => {
     const token = createUnsubscribeToken("user-1", "lead-1", "Person@Example.com");
     expect(verifyUnsubscribeToken(token)).toMatchObject({ userId: "user-1", leadId: "lead-1", email: "person@example.com" });
+  });
+
+  it("uses the canonical payload required by the public unsubscribe route", () => {
+    const token = createUnsubscribeToken("journey-user", "journey-lead", "Journey@Example.com");
+    expect(verifyUnsubscribeToken(token)).toEqual(expect.objectContaining({ userId: "journey-user", leadId: "journey-lead", email: "journey@example.com" }));
   });
 
   it("rejects tampered tokens", () => {
@@ -23,6 +29,24 @@ describe("scoped unsubscribe tokens", () => {
     const token = createUnsubscribeToken("user-1", "lead-1", "person@example.com");
     vi.setSystemTime(new Date("2026-09-15T00:00:01.000Z"));
     expect(verifyUnsubscribeToken(token)).toBeNull();
+  });
+});
+
+describe("internal worker authentication", () => {
+  it("accepts the canonical timestamp/nonce/body signature within the replay window", () => {
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const nonce = `nonce-${Date.now()}-abcdefghijklmnop`;
+    const body = "{}";
+    const signature = signWorkerRequest(timestamp, nonce, body);
+    expect(verifyWorkerRequest(body, timestamp, nonce, signature)).toBe(true);
+  });
+
+  it("rejects a stale timestamp and a changed body", () => {
+    const timestamp = String(Math.floor(Date.now() / 1000) - 301);
+    const nonce = "nonce-stale-abcdefghijklmnop";
+    const signature = signWorkerRequest(timestamp, nonce, "{}");
+    expect(verifyWorkerRequest("{}", timestamp, nonce, signature)).toBe(false);
+    expect(verifyWorkerRequest('{"changed":true}', String(Math.floor(Date.now() / 1000)), nonce, signature)).toBe(false);
   });
 });
 

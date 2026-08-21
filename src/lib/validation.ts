@@ -98,6 +98,15 @@ export const suppressionCreateSchema = z.object({
   reason: z.enum(["Unsubscribed", "ManualBlock", "HardBounce", "Complaint"]).default("ManualBlock"),
 });
 
+export const smtpConfigSchema = z.object({
+  host: z.string().trim().min(1).max(253).regex(/^[A-Za-z0-9.-]+$/),
+  port: z.number().int().min(1).max(65535).default(465),
+  secure: z.boolean().default(true),
+  user: z.string().trim().min(1).max(320),
+  pass: z.string().min(1).max(1000),
+  from: z.string().email().max(320).optional(),
+});
+
 export const providerConnectSchema = z.object({
   type: z.enum(["email", "ai"]),
   platform: z.enum(["SMTP", "GmailOAuth", "Anthropic", "OpenAI", "OpenRouter", "Telegram"]),

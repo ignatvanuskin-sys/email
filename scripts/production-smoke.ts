@@ -1,3 +1,5 @@
+export {};
+
 async function main() {
   const baseUrl = process.env.SMOKE_BASE_URL ?? process.env.APP_URL ?? "http://localhost:3000";
   const checks: Array<{ path: string; expected: number }> = [
