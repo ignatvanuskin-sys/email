@@ -435,6 +435,10 @@ body { font-family: var(--font-display); letter-spacing: -0.006em; }
   -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
 }
+.auth-shell .card-glass { background: rgba(21, 21, 26, 0.94); border-color: rgba(255, 255, 255, 0.14); color: var(--text); }
+.auth-shell .card-glass .page-sub, .auth-shell .card-glass .field-hint { color: #b8beca; }
+.auth-shell .card-glass label { color: #f1f3f6; }
+.auth-shell .card-glass .friendly-error { margin-bottom: 12px; }
 
 
 /* ---- Typography ---- */

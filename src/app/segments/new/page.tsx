@@ -5,20 +5,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { useToast } from "@/components/Toast";
+import { leadStatusLabels, uiLabel } from "@/lib/uiLabels";
 import BlurText from "@/components/react-bits/BlurText";
 import FadeContent from "@/components/react-bits/FadeContent";
 
 type FilterRow = { field: string; op: string; value: string };
 
 const FIELDS = [
-  { key: "status", label: "Status", ops: ["equals"] },
-  { key: "score", label: "Score", ops: ["gt", "lt", "equals"] },
-  { key: "name", label: "Name", ops: ["contains", "equals"] },
-  { key: "email", label: "Email", ops: ["contains", "equals"] },
-  { key: "companyOrChannel", label: "Company", ops: ["contains", "equals"] },
+  { key: "status", label: "Статус", ops: ["equals"] },
+  { key: "score", label: "Оценка", ops: ["gt", "lt", "equals"] },
+  { key: "name", label: "Имя", ops: ["contains", "equals"] },
+  { key: "email", label: "Электронная почта", ops: ["contains", "equals"] },
+  { key: "companyOrChannel", label: "Компания или канал", ops: ["contains", "equals"] },
 ];
 
 const STATUSES = ["New", "Analyzed", "Contacted", "Replied", "Interested", "Not Now", "Client", "Lost", "Unsubscribed"];
+const OPERATOR_LABELS: Record<string, string> = { equals: "равно", gt: "больше", lt: "меньше", contains: "содержит" };
 
 export default function NewSegmentPage() {
   const router = useRouter();
@@ -52,7 +54,7 @@ export default function NewSegmentPage() {
       const res = await api<{ leads: unknown[] }>(`/api/leads?${qs.replace(/^&/, "")}`);
       setPreview(res.leads.length);
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Preview failed", "error");
+      notify("Не удалось обновить предварительный просмотр.", "error");
     }
   };
 
@@ -66,10 +68,10 @@ export default function NewSegmentPage() {
         method: "POST",
         body: JSON.stringify({ name, description, filters: JSON.stringify(stored) }),
       });
-      notify("Segment created", "success");
+      notify("Группа контактов создана.", "success");
       router.push("/segments");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create failed");
+      setError("Не удалось создать группу контактов. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -79,10 +81,10 @@ export default function NewSegmentPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="New Segment" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub">Define a reusable smart filter</p>
+          <BlurText text="Новая группа контактов" className="page-title" delay={40} animateBy="words" />
+          <p className="page-sub">Сохраните фильтр, чтобы повторно использовать эту аудиторию</p>
         </div>
-        <Link href="/segments" className="btn btn-ghost">← Back</Link>
+        <Link href="/segments" className="btn btn-ghost">← Назад</Link>
       </div>
 
       {error && <div className="card" style={{ padding: 12, marginBottom: 16, color: "var(--red)" }}>{error}</div>}
@@ -90,15 +92,15 @@ export default function NewSegmentPage() {
       <FadeContent>
         <form className="card" style={{ maxWidth: 620, padding: 24 }} onSubmit={submit}>
           <div className="field">
-            <label>Name *</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="YouTube creators 50k+" />
+            <label>Название *</label>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Например, YouTube-каналы от 50 000 подписчиков" />
           </div>
           <div className="field">
-            <label>Description</label>
-            <textarea className="input" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+            <label>Описание</label>
+            <textarea className="input" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Необязательно" />
           </div>
 
-          <div className="section-label" style={{ marginTop: 8 }}>Filters</div>
+          <div className="section-label" style={{ marginTop: 8 }}>Фильтры</div>
           <div className="stack" style={{ gap: 8, marginBottom: 14 }}>
             {filters.map((f, i) => (
               <div key={i} className="row" style={{ gap: 8 }}>
@@ -106,28 +108,28 @@ export default function NewSegmentPage() {
                   {FIELDS.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
                 </select>
                 <select className="select" style={{ flex: 0.6 }} value={f.op} onChange={(e) => setFilter(i, "op", e.target.value)}>
-                  {FIELDS.find((x) => x.key === f.field)?.ops.map((o) => <option key={o} value={o}>{o}</option>)}
+                  {FIELDS.find((x) => x.key === f.field)?.ops.map((o) => <option key={o} value={o}>{OPERATOR_LABELS[o] ?? o}</option>)}
                 </select>
                 {f.field === "status" ? (
                   <select className="select" style={{ flex: 1 }} value={f.value} onChange={(e) => setFilter(i, "value", e.target.value)}>
-                    <option value="">Any</option>
-                    {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    <option value="">Любой статус</option>
+                    {STATUSES.map((s) => <option key={s} value={s}>{uiLabel(leadStatusLabels, s)}</option>)}
                   </select>
                 ) : (
-                  <input className="input" style={{ flex: 1 }} value={f.value} onChange={(e) => setFilter(i, "value", e.target.value)} placeholder="value" />
+                  <input className="input" style={{ flex: 1 }} value={f.value} onChange={(e) => setFilter(i, "value", e.target.value)} placeholder="значение" />
                 )}
                 <button type="button" className="btn btn-sm btn-ghost-danger" onClick={() => removeFilter(i)}>✕</button>
               </div>
             ))}
           </div>
           <div className="row" style={{ gap: 8 }}>
-            <button type="button" className="btn btn-sm" onClick={addFilter}>+ Add filter</button>
-            <button type="button" className="btn btn-sm" onClick={previewLeads}>Preview</button>
-            {preview !== null && <span className="small muted">{preview} matching lead(s)</span>}
+            <button type="button" className="btn btn-sm" onClick={addFilter}>＋ Добавить фильтр</button>
+            <button type="button" className="btn btn-sm" onClick={previewLeads}>Предпросмотр</button>
+            {preview !== null && <span className="small muted">Подходящих контактов: {preview}</span>}
           </div>
 
           <button className="btn btn-primary btn-lg" style={{ width: "100%", marginTop: 18 }} disabled={loading || !name.trim()}>
-            {loading ? "Saving..." : "Create segment"}
+            {loading ? "Сохранение…" : "Создать группу"}
           </button>
         </form>
       </FadeContent>

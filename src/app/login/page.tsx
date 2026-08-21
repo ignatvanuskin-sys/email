@@ -17,6 +17,9 @@ export default function LoginPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!email.trim()) { setError("Введите электронную почту."); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setError("Введите корректный адрес электронной почты."); return; }
+    if (!password) { setError("Введите пароль."); return; }
     setLoading(true);
     setError("");
     try {
@@ -44,16 +47,16 @@ export default function LoginPage() {
           <p className="page-sub" style={{ marginBottom: 20 }}>
             Войдите в рабочее пространство рассылок.
           </p>
-          <form onSubmit={submit}>
+          <form onSubmit={submit} noValidate aria-describedby={error ? "login-error" : undefined}>
             <div className="field">
-              <label>Электронная почта</label>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <label htmlFor="login-email">Электронная почта</label>
+              <input id="login-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </div>
             <div className="field">
-              <label>Пароль</label>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <label htmlFor="login-password">Пароль</label>
+              <input id="login-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
             </div>
-            {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
+            {error && <div id="login-error" className="small friendly-error" role="alert">{error}</div>}
             <ClickSpark sparkColor="rgba(255,255,255,0.8)" sparkSize={7} sparkRadius={18} sparkCount={10}>
               <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
                 {loading ? "Вход…" : "Войти"}

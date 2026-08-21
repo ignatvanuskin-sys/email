@@ -27,11 +27,11 @@ type Lead = {
 };
 
 const PRESETS: Array<{ name: string; desc: string; q: string }> = [
-  { name: "All leads", desc: "Every prospect in your pipeline", q: "" },
-  { name: "Hot leads", desc: "Score 80+", q: "tier=HOT" },
-  { name: "Never contacted", desc: "Status is New", q: "status=New" },
-  { name: "Contacted", desc: "Status is Contacted", q: "status=Contacted" },
-  { name: "Replied", desc: "Status is Replied", q: "status=Replied" },
+  { name: "Все контакты", desc: "Все контакты в вашей воронке", q: "" },
+  { name: "Горячие контакты", desc: "Оценка 80+", q: "tier=HOT" },
+  { name: "Без контакта", desc: "Статус: Новый", q: "status=New" },
+  { name: "Были на связи", desc: "Статус: Связались", q: "status=Contacted" },
+  { name: "Ответили", desc: "Статус: Ответил", q: "status=Replied" },
 ];
 
 export default function SegmentsPage() {
@@ -48,14 +48,14 @@ export default function SegmentsPage() {
       setSegments(res.segments);
       const leads = await api<{ leads: Lead[] }>("/api/leads");
       setCounts({
-        "All leads": leads.leads.length,
-        "Hot leads": leads.leads.filter((l) => l.leadScore >= 80).length,
-        "Never contacted": leads.leads.filter((l) => l.status === "New").length,
-        Contacted: leads.leads.filter((l) => l.status === "Contacted").length,
-        Replied: leads.leads.filter((l) => l.status === "Replied").length,
+        "Все контакты": leads.leads.length,
+        "Горячие контакты": leads.leads.filter((l) => l.leadScore >= 80).length,
+        "Без контакта": leads.leads.filter((l) => l.status === "New").length,
+        "Были на связи": leads.leads.filter((l) => l.status === "Contacted").length,
+        Ответили: leads.leads.filter((l) => l.status === "Replied").length,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError("Не удалось загрузить группы контактов. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -64,13 +64,13 @@ export default function SegmentsPage() {
   useEffect(() => { load(); }, [load]);
 
   const del = async (id: string) => {
-    if (!window.confirm("Delete this segment?")) return;
+    if (!window.confirm("Удалить эту группу контактов?")) return;
     try {
       await api(`/api/segments/${id}`, { method: "DELETE" });
-      notify("Segment deleted", "success");
+      notify("Группа контактов удалена.", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Delete failed", "error");
+      notify("Не удалось удалить группу контактов.", "error");
     }
   };
 
@@ -78,10 +78,10 @@ export default function SegmentsPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Segments" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub"><ShinyText text="Build smart audiences for your campaigns" speed={3} /></p>
+          <BlurText text="Группы контактов" className="page-title" delay={40} animateBy="words" />
+          <p className="page-sub"><ShinyText text="Собирайте аудитории для рассылок с помощью фильтров" speed={3} /></p>
         </div>
-        <Link href="/segments/new" className="btn btn-primary">+ New Segment</Link>
+        <Link href="/segments/new" className="btn btn-primary">＋ Новая группа</Link>
       </div>
 
       {error && <div className="card" style={{ padding: 12, marginBottom: 16, color: "var(--red)" }}>{error}</div>}
@@ -95,7 +95,7 @@ export default function SegmentsPage() {
       ) : (
         <PageTransition>
           <div className="stack" style={{ gap: 14 }}>
-            <div className="section-label">Presets</div>
+            <div className="section-label">Готовые группы</div>
             <div className="metric-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
               {PRESETS.map((p) => (
                 <div key={p.name} className="kpi" style={{ cursor: "pointer" }} onClick={() => router.push(`/leads?${p.q}`)}>
@@ -107,13 +107,13 @@ export default function SegmentsPage() {
               ))}
             </div>
 
-            <div className="section-label" style={{ marginTop: 8 }}>Custom segments</div>
+            <div className="section-label" style={{ marginTop: 8 }}>Свои группы</div>
             {segments.length === 0 ? (
               <div className="card empty-state">
                 <div className="es-icon" aria-hidden>🎯</div>
-                <div className="es-title">No custom segments yet</div>
-                <div className="es-sub">Create a segment to reuse smart filters across campaigns.</div>
-                <Link href="/segments/new" className="btn btn-primary" style={{ marginTop: 12 }}>Create segment</Link>
+                <div className="es-title">Своих групп пока нет</div>
+                <div className="es-sub">Создайте группу, чтобы повторно использовать фильтры в рассылках.</div>
+                <Link href="/segments/new" className="btn btn-primary" style={{ marginTop: 12 }}>Создать группу</Link>
               </div>
             ) : (
               segments.map((s) => {
@@ -125,10 +125,10 @@ export default function SegmentsPage() {
                       <div className="row">
                         <div className="grow">
                           <div style={{ fontWeight: 650 }}>{s.name}</div>
-                          <div className="small muted">{s.description || "No description"}</div>
+                          <div className="small muted">{s.description || "Без описания"}</div>
                         </div>
-                        <span className="badge blue">{filterCount} filter(s)</span>
-                        <button className="btn btn-sm btn-ghost-danger" onClick={(e) => { e.stopPropagation(); del(s.id); }}>Delete</button>
+                        <span className="badge blue">{filterCount} фильтров</span>
+                        <button className="btn btn-sm btn-ghost-danger" onClick={(e) => { e.stopPropagation(); del(s.id); }}>Удалить</button>
                       </div>
                     </div>
                   </FadeContent>

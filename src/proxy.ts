@@ -28,7 +28,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (hasSession && isPublic) {
+  if (hasSession && (pathname === "/login" || pathname === "/register")) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

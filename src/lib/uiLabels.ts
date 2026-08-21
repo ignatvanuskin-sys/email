@@ -15,13 +15,27 @@ export const emailStatusLabels = {
   Approved: "Одобрено",
   Queued: "В очереди",
   Sent: "Отправлено",
+  Delivered: "Доставлено",
   Failed: "Ошибка",
+  Bounced: "Возврат",
+  Unsubscribed: "Отписка",
+  Retry: "Повторная попытка",
 } as const;
 
 export const followUpStatusLabels = {
   Pending: "Ожидает",
   Completed: "Выполнен",
   Skipped: "Пропущен",
+  Cancelled: "Отменён",
+} as const;
+
+export const campaignLeadStatusLabels = {
+  Pending: "Ожидает отправки",
+  Sent: "Отправлено",
+  Replied: "Ответил",
+  Bounced: "Возврат",
+  Unsubscribed: "Отписался",
+  Skipped: "Пропущено",
 } as const;
 
 export const replyIntentLabels = {

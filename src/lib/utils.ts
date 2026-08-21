@@ -8,7 +8,7 @@ export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString("ru-RU", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -19,7 +19,7 @@ export function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("en-US", {
+  return date.toLocaleString("ru-RU", {
     month: "short",
     day: "numeric",
     hour: "2-digit",

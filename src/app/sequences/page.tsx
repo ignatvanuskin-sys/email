@@ -28,7 +28,7 @@ export default function SequencesPage() {
       const res = await api<{ sequences: Sequence[] }>("/api/sequences");
       setData(res.sequences);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError("Не удалось загрузить автоматические цепочки. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -40,10 +40,10 @@ export default function SequencesPage() {
     <div>
       <div className="page-head">
         <div>
-          <BlurText text="Sequences" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub"><ShinyText text="Automated multi-step outreach sequences" speed={3} /></p>
+          <BlurText text="Автоматические цепочки" className="page-title" delay={40} animateBy="words" />
+          <p className="page-sub"><ShinyText text="Автоматизируйте повторные письма в несколько шагов" speed={3} /></p>
         </div>
-        <Link href="/sequences/new" className="btn btn-primary">+ New Sequence</Link>
+        <Link href="/sequences/new" className="btn btn-primary">＋ Новая цепочка</Link>
       </div>
 
       {error && <div className="card" style={{ padding: 12, marginBottom: 16, color: "var(--red)" }}>{error}</div>}
@@ -57,9 +57,9 @@ export default function SequencesPage() {
       ) : data.length === 0 ? (
         <div className="card empty-state">
           <div className="es-icon" aria-hidden>🔁</div>
-          <div className="es-title">No sequences yet</div>
-          <div className="es-sub">Create a sequence to automate your follow-up emails.</div>
-          <Link href="/sequences/new" className="btn btn-primary" style={{ marginTop: 12 }}>Create sequence</Link>
+          <div className="es-title">Цепочек пока нет</div>
+          <div className="es-sub">Создайте цепочку, чтобы автоматизировать повторные письма.</div>
+          <Link href="/sequences/new" className="btn btn-primary" style={{ marginTop: 12 }}>Создать цепочку</Link>
         </div>
       ) : (
         <PageTransition>
@@ -71,10 +71,10 @@ export default function SequencesPage() {
                     <div className="grow">
                       <div style={{ fontWeight: 650, fontSize: 16 }}>{s.name}</div>
                     </div>
-                    <span className="small muted">{s._count.steps} step(s)</span>
+                    <span className="small muted">{s._count.steps} шагов</span>
                   </div>
                   <div className="row" style={{ marginTop: 8 }}>
-                    <span className="small muted">Created {formatDate(s.createdAt)}</span>
+                    <span className="small muted">Создана: {formatDate(s.createdAt)}</span>
                   </div>
                 </div>
               </FadeContent>

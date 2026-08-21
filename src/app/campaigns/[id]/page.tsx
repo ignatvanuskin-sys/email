@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { useToast } from "@/components/Toast";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import { campaignLeadStatusLabels, uiLabel } from "@/lib/uiLabels";
 import BlurText from "@/components/react-bits/BlurText";
 import ShinyText from "@/components/react-bits/ShinyText";
 import SpotlightCard from "@/components/react-bits/SpotlightCard";
@@ -66,6 +67,36 @@ const LEAD_STATUS_STYLES: Record<string, string> = {
   Replied: "blue",
   Unsubscribed: "red",
 };
+
+const PREFLIGHT_MESSAGES: Record<string, string> = {
+  provider_missing: "Подключите активный почтовый провайдер перед запуском рассылки.",
+  from_missing: "Укажите корректный адрес отправителя в настройках почты.",
+  domain_not_added: "Добавьте домен отправителя в центр доставляемости и опубликуйте SPF, DKIM и DMARC.",
+  domain_unverified: "Домен отправителя ещё не прошёл полную проверку.",
+  content_missing: "Выберите шаблон, добавьте шаг цепочки или создайте вариант A/B.",
+  subject_missing: "Укажите тему письма.",
+  body_missing: "Добавьте текст письма.",
+  subject_long: "Тема длиннее 120 символов и может быть обрезана.",
+  text_version_missing: "В HTML-письме нет содержательной текстовой версии.",
+  unsafe_html: "Небезопасный HTML или скрипты нельзя использовать в письме.",
+  image_alt_missing: "Добавьте alt-текст к изображениям для доступности.",
+  spam_trigger: "Формулировка может вызвать срабатывание спам-фильтров.",
+  subject_spam_style: "Избыток знаков препинания или заглавных букв в теме может ухудшить доставляемость.",
+  unsubscribe_injected: "В черновике нет ссылки для отписки — при отправке ClipReach добавит подписанную ссылку.",
+};
+
+function localizePreflightIssue(issue: PreflightIssue): string {
+  if (PREFLIGHT_MESSAGES[issue.code]) return PREFLIGHT_MESSAGES[issue.code];
+  if (issue.code === "invalid_merge_tag") {
+    const variable = issue.message.match(/\{\{[^}]+\}\}/)?.[0];
+    return variable ? `Недопустимая переменная шаблона: ${variable}` : "Недопустимая переменная шаблона.";
+  }
+  if (issue.code === "broken_link") {
+    const link = issue.message.match(/https?:\/\/\S+/)?.[0];
+    return link ? `Ссылка недоступна: ${link}` : "Одна из ссылок в письме недоступна.";
+  }
+  return "Проверка выявила проблему в этом пункте.";
+}
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
@@ -355,7 +386,7 @@ export default function CampaignDetailPage() {
           )}
         </div>
 
-        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Версии кампании</div>{approvalExpiresAt && <span className="badge green">Одобрено до {new Date(approvalExpiresAt).toLocaleTimeString()}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Версия {version.version}</span><span className="muted">{new Date(version.createdAt).toLocaleString()}</span></button>)}</div></section>}
+        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Версии кампании</div>{approvalExpiresAt && <span className="badge green">Одобрено до {formatDateTime(approvalExpiresAt)}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Версия {version.version}</span><span className="muted">{formatDateTime(version.createdAt)}</span></button>)}</div></section>}
 
         {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Оптимизация отправки</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Максимум сообщений</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="Без ограничения" /></div><div className="field"><label>Окно (дни)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Оптимизировать время отправки</label><button className="btn btn-primary" onClick={saveOptimization}>Сохранить</button></div><div className="small muted">Контакты сверх лимита пропускаются в этой партии. Контакты из цепочек переносятся на ближайшее разрешённое время.</div></section>}
 
@@ -364,7 +395,7 @@ export default function CampaignDetailPage() {
             <div className="row" style={{ marginBottom: 12 }}>
               <div className="grow">
                 <div className="section-label" style={{ marginBottom: 2 }}>Проверка кампании</div>
-                <div className="small muted">Проверено {new Date(preflight.checkedAt).toLocaleString()} · ошибок: {preflight.errors} · предупреждений: {preflight.warnings}</div>
+                <div className="small muted">Проверено {formatDateTime(preflight.checkedAt)} · ошибок: {preflight.errors} · предупреждений: {preflight.warnings}</div>
               </div>
               <span className={`badge ${preflight.ready ? "green" : "red"}`}>{preflight.ready ? "Готово" : "Заблокировано"}</span>
             </div>
@@ -372,7 +403,7 @@ export default function CampaignDetailPage() {
               {preflight.issues.map((issue, index) => (
                 <div className="row small" key={`${issue.code}-${issue.source ?? "campaign"}-${index}`} style={{ alignItems: "start" }}>
                   <span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity === "error" ? "Ошибка" : "Предупреждение"}</span>
-                  <div><div>{issue.message}</div>{issue.source && <div className="muted">Источник: {issue.source}</div>}</div>
+                  <div><div>{localizePreflightIssue(issue)}</div>{issue.source && <div className="muted">Источник: {issue.source}</div>}</div>
                 </div>
               ))}
             </div>}
@@ -466,7 +497,7 @@ export default function CampaignDetailPage() {
                         <td style={{ padding: "10px 16px", fontWeight: 550 }}>{cl.lead.name}</td>
                         <td style={{ padding: "10px 16px" }}>{cl.lead.email || "—"}</td>
                         <td style={{ padding: "10px 16px" }}>
-                          <span className={`badge ${LEAD_STATUS_STYLES[cl.status] || "gray"}`}>{cl.status}</span>
+                          <span className={`badge ${LEAD_STATUS_STYLES[cl.status] || "gray"}`}>{uiLabel(campaignLeadStatusLabels, cl.status)}</span>
                         </td>
                         <td style={{ padding: "10px 16px" }} className="small muted">{cl.sentAt ? formatDate(cl.sentAt) : "—"}</td>
                       </tr>
