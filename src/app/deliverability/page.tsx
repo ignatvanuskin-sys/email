@@ -31,7 +31,7 @@ export default function DeliverabilityPage() {
       const data = await api<{ domains: SendingDomain[] }>("/api/sending-domains");
       setDomains(data.domains);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Не удалось загрузить домены", "error");
+      notify("Не удалось загрузить домены. Попробуйте обновить страницу.", "error");
     } finally {
       setLoading(false);
     }
@@ -48,7 +48,7 @@ export default function DeliverabilityPage() {
       notify("Домен добавлен. Разместите DNS-записи ниже.", "success");
       await load();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Не удалось добавить домен", "error");
+      notify("Не удалось добавить домен. Проверьте его написание.", "error");
     } finally {
       setCreating(false);
     }
@@ -61,7 +61,7 @@ export default function DeliverabilityPage() {
       setDomains((current) => current.map((item) => item.id === id ? data.domain : item));
       notify(data.domain.overallStatus === "Verified" ? "Все DNS-записи подтверждены." : "DNS проверен: часть записей требует внимания.", data.domain.overallStatus === "Verified" ? "success" : "info");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "DNS-проверка не удалась", "error");
+      notify("Не удалось проверить DNS-записи.", "error");
     } finally {
       setChecking(null);
     }
@@ -74,7 +74,7 @@ export default function DeliverabilityPage() {
       setDomains((current) => current.filter((item) => item.id !== id));
       notify("Домен удалён.", "info");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Не удалось удалить домен", "error");
+      notify("Не удалось удалить домен.", "error");
     }
   };
 
@@ -92,10 +92,10 @@ export default function DeliverabilityPage() {
           <label>Домен отправителя</label>
           <input className="input" value={domain} onChange={(event) => setDomain(event.target.value)} placeholder="example.com" required />
         </div>
-        <button className="btn btn-primary" disabled={creating}>{creating ? "Создание..." : "Добавить домен"}</button>
+        <button className="btn btn-primary" disabled={creating}>{creating ? "Добавляем…" : "Добавить домен"}</button>
       </form>
 
-      {loading ? <div className="card empty">Загрузка...</div> : domains.length === 0 ? (
+      {loading ? <div className="card empty">Загрузка доменов…</div> : domains.length === 0 ? (
         <div className="card empty">Добавьте первый домен, чтобы получить SPF, DKIM и DMARC записи.</div>
       ) : <div className="stack" style={{ gap: 18 }}>
         {domains.map((item) => <DomainCard key={item.id} item={item} checking={checking === item.id} onVerify={() => verify(item.id)} onRemove={() => remove(item.id)} />)}
@@ -116,14 +116,14 @@ function DomainCard({ item, checking, onVerify, onRemove }: { item: SendingDomai
     <div className="row" style={{ alignItems: "start", marginBottom: 16 }}>
       <div className="grow">
         <h2 style={{ margin: 0, fontSize: 20 }}>{item.domain}</h2>
-        <div className="small muted">Selector: {item.selector} · Последняя проверка: {item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleString("ru-RU") : "ещё не запускалась"}</div>
+        <div className="small muted">Селектор DKIM: {item.selector} · Последняя проверка: {item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleString("ru-RU") : "ещё не запускалась"}</div>
       </div>
       <Status value={item.overallStatus} />
-      <button className="btn btn-primary" onClick={onVerify} disabled={checking}>{checking ? "Проверка..." : "Проверить DNS"}</button>
+      <button className="btn btn-primary" onClick={onVerify} disabled={checking}>{checking ? "Проверяем…" : "Проверить DNS"}</button>
       <button className="btn btn-outline-danger" onClick={onRemove}>Удалить</button>
     </div>
 
-    {item.lastError && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>DNS error: {item.lastError}</div>}
+    {item.lastError && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>Ошибка DNS: {item.lastError}</div>}
 
     <div className="stack" style={{ gap: 10 }}>
       <RecordRow label="SPF" status={item.spfStatus} record={item.records.spf} />
@@ -144,14 +144,15 @@ function RecordRow({ label, status, record }: { label: string; status: string; r
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); };
   return <div className="card" style={{ padding: 12, background: "var(--surface-2)" }}>
     <div className="row" style={{ marginBottom: 8 }}><strong>{label}</strong><Status value={status} /></div>
-    <div className="small muted">{record.type} · Host</div>
+    <div className="small muted">{record.type} · Сервер</div>
     <div className="row"><code className="grow" style={{ overflowWrap: "anywhere" }}>{record.host}</code><button className="btn btn-sm" onClick={() => copy(record.host)}>Копировать</button></div>
-    <div className="small muted" style={{ marginTop: 8 }}>Value</div>
+    <div className="small muted" style={{ marginTop: 8 }}>Значение</div>
     <div className="row"><code className="grow" style={{ overflowWrap: "anywhere", wordBreak: "break-all" }}>{record.value}</code><button className="btn btn-sm" onClick={() => copy(record.value)}>Копировать</button></div>
   </div>;
 }
 
 function Status({ value }: { value: string }) {
   const className = value === "Verified" ? "green" : value === "Pending" ? "gray" : "red";
-  return <span className={`badge ${className}`}>{value}</span>;
+  const label = ({ Verified: "Подтверждено", Pending: "Ожидает проверки", Failed: "Ошибка" } as Record<string, string>)[value] ?? value;
+  return <span className={`badge ${className}`}>{label}</span>;
 }

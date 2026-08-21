@@ -24,7 +24,7 @@ export default function LoginPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError("Не удалось войти. Проверьте электронную почту и пароль.");
     } finally {
       setLoading(false);
     }

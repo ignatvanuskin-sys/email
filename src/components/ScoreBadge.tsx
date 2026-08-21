@@ -8,6 +8,7 @@ export function scoreTier(score: number): "HOT" | "WARM" | "COLD" {
 }
 
 const EMOJI: Record<string, string> = { HOT: "🔥", WARM: "🟡", COLD: "⚪" };
+const LABELS: Record<string, string> = { HOT: "Горячий", WARM: "Тёплый", COLD: "Холодный" };
 
 export function ScoreBadge({
   score,
@@ -22,7 +23,7 @@ export function ScoreBadge({
       className={`badge ${tier.toLowerCase()}`}
       title={breakdown?.map((b) => `${b.label}: ${b.points}/100 (${b.weight}%) — ${b.reason}`).join("\n")}
     >
-      {EMOJI[tier]} {score} {tier}
+      {EMOJI[tier]} {score} · {LABELS[tier]}
     </span>
   );
 }

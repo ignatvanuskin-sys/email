@@ -14,7 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [business, setBusiness] = useState(
-    "Short-form video editing — I repurpose long videos into Reels, Shorts and TikToks for creators.",
+    "Например: помогаю компаниям находить клиентов через персональные письма.",
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function RegisterPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Register failed");
+      setError("Не удалось создать аккаунт. Проверьте введённые данные и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,7 @@ export default function RegisterPage() {
           <form onSubmit={submit}>
             <div className="field">
               <label>Имя</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jordan Smith" />
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Алексей Иванов" />
             </div>
             <div className="field">
               <label>Электронная почта</label>

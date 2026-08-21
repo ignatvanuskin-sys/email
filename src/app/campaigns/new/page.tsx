@@ -1,24 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState, FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { useToast } from "@/components/Toast";
-import BlurText from "@/components/react-bits/BlurText";
-import ShinyText from "@/components/react-bits/ShinyText";
-import FadeContent from "@/components/react-bits/FadeContent";
 
 type Option = { id: string; name: string };
-
-type FormState = {
-  name: string;
-  description: string;
-  dailyLimit: number;
-  templateId: string;
-  sequenceId: string;
-  segmentId: string;
-};
+type FormState = { name: string; description: string; dailyLimit: number; templateId: string; sequenceId: string; segmentId: string };
 
 export default function NewCampaignPage() {
   const router = useRouter();
@@ -31,55 +20,38 @@ export default function NewCampaignPage() {
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [error, setError] = useState("");
   const [aiGoal, setAiGoal] = useState("");
-  const [aiTone, setAiTone] = useState("warm and concise");
+  const [aiTone, setAiTone] = useState("Дружелюбный и краткий");
   const [aiLoading, setAiLoading] = useState(false);
   const [subjects, setSubjects] = useState<Array<{ text: string; angle: string }>>([]);
   const [draft, setDraft] = useState({ subject: "", preheader: "", body: "" });
 
   const loadOptions = useCallback(async () => {
     try {
-      const [t, s, seg] = await Promise.all([
-        api<{ templates: Option[] }>("/api/templates"),
-        api<{ sequences: Option[] }>("/api/sequences"),
-        api<{ segments: Option[] }>("/api/segments"),
-      ]);
-      setTemplates(t.templates);
-      setSequences(s.sequences);
-      setSegments(seg.segments);
+      const [templatesResponse, sequencesResponse, segmentsResponse] = await Promise.all([api<{ templates: Option[] }>("/api/templates"), api<{ sequences: Option[] }>("/api/sequences"), api<{ segments: Option[] }>("/api/segments")]);
+      setTemplates(templatesResponse.templates);
+      setSequences(sequencesResponse.sequences);
+      setSegments(segmentsResponse.segments);
     } catch {
-      notify("Failed to load options", "error");
+      notify("Не удалось загрузить варианты. Попробуйте обновить страницу.", "error");
     } finally {
       setLoadingOptions(false);
     }
   }, [notify]);
 
-  useEffect(() => { loadOptions(); }, [loadOptions]);
+  useEffect(() => { void loadOptions(); }, [loadOptions]);
 
-  const set = (k: keyof FormState) => (e: { target: { value: string } }) => {
-    const val = k === "dailyLimit" ? Number(e.target.value) : e.target.value;
-    setForm((f) => ({ ...f, [k]: val }));
-  };
+  const set = (key: keyof FormState) => (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: key === "dailyLimit" ? Number(event.target.value) : event.target.value }));
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError("");
     try {
-      const res = await api<{ campaign: { id: string } }>("/api/campaigns", {
-        method: "POST",
-        body: JSON.stringify({
-          name: form.name,
-          description: form.description,
-          dailyLimit: form.dailyLimit,
-          templateId: form.templateId || null,
-          sequenceId: form.sequenceId || null,
-          segmentId: form.segmentId || null,
-        }),
-      });
-      notify("Campaign created", "success");
-      router.push(`/campaigns/${res.campaign.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Create failed");
+      const response = await api<{ campaign: { id: string } }>("/api/campaigns", { method: "POST", body: JSON.stringify({ name: form.name, description: form.description, dailyLimit: form.dailyLimit, templateId: form.templateId || null, sequenceId: form.sequenceId || null, segmentId: form.segmentId || null }) });
+      notify("Рассылка создана.", "success");
+      router.push(`/campaigns/${response.campaign.id}`);
+    } catch {
+      setError("Не удалось создать рассылку. Проверьте данные и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -90,9 +62,12 @@ export default function NewCampaignPage() {
     try {
       const result = await api<{ draft: { subject: string; body: string; preheader: string } }>("/api/ai/campaign-draft", { method: "POST", body: JSON.stringify({ goal: aiGoal, tone: aiTone, audience: form.description, offer: form.description }) });
       setDraft(result.draft);
-      notify("Draft generated. Review it before using it in a template.", "success");
-    } catch (e) { notify(e instanceof Error ? e.message : "AI generation failed", "error"); }
-    finally { setAiLoading(false); }
+      notify("Черновик готов. Проверьте его перед использованием.", "success");
+    } catch {
+      notify("Не удалось подготовить черновик.", "error");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const generateSubjects = async () => {
@@ -100,72 +75,45 @@ export default function NewCampaignPage() {
     try {
       const result = await api<{ subjects: Array<{ text: string; angle: string }> }>("/api/ai/subjects", { method: "POST", body: JSON.stringify({ goal: aiGoal, tone: aiTone, audience: form.description, offer: form.description }) });
       setSubjects(result.subjects);
-    } catch (e) { notify(e instanceof Error ? e.message : "Subject generation failed", "error"); }
-    finally { setAiLoading(false); }
+    } catch {
+      notify("Не удалось подготовить варианты темы.", "error");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   return (
     <div>
-      <div className="page-head">
-        <div>
-          <BlurText text="Новая кампания" className="page-title" delay={40} animateBy="words" />
-          <p className="page-sub"><ShinyText text="Настройте параметры новой рассылки" speed={3} /></p>
-        </div>
-        <Link href="/campaigns" className="btn">Back to campaigns</Link>
-      </div>
+      <div className="page-head"><div><h1 className="page-title">Новая рассылка</h1><p className="page-sub">Сначала подготовим кампанию. Отправка начнётся только после вашей проверки.</p></div><Link href="/campaigns" className="btn">← К рассылкам</Link></div>
+      <form className="card campaign-form" onSubmit={submit}>
+        <div className="field"><label htmlFor="campaign-name">Название рассылки *</label><input id="campaign-name" className="input" value={form.name} onChange={set("name")} required placeholder="Например, знакомство с компаниями" /></div>
+        <div className="field"><label htmlFor="campaign-goal">Цель рассылки</label><textarea id="campaign-goal" className="input" rows={3} value={form.description} onChange={set("description")} placeholder="Какой результат вы хотите получить?" /></div>
+        <div className="field"><label htmlFor="campaign-template">Шаблон письма</label><select id="campaign-template" className="select" value={form.templateId} onChange={set("templateId")} disabled={loadingOptions}><option value="">Выберите шаблон позже</option>{templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><span className="field-hint">Шаблон можно выбрать сейчас или добавить в карточке рассылки.</span></div>
+        <div className="field"><label htmlFor="campaign-segment">Кому отправлять</label><select id="campaign-segment" className="select" value={form.segmentId} onChange={set("segmentId")} disabled={loadingOptions}><option value="">Все контакты</option>{segments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}</select></div>
 
-      <FadeContent>
-        <form className="card" style={{ maxWidth: 560, padding: 24 }} onSubmit={submit}>
-          <div className="field">
-            <label>Name *</label>
-            <input className="input" value={form.name} onChange={set("name")} required placeholder="Summer outreach" />
+        <details className="form-extra">
+          <summary>Дополнительные настройки</summary>
+          <div className="form-extra-content">
+            <div className="field"><label htmlFor="campaign-limit">Лимит писем в день</label><input id="campaign-limit" className="input" type="number" min={1} value={form.dailyLimit} onChange={set("dailyLimit")} /><span className="field-hint">Начните с небольшого лимита, чтобы проверить доставляемость.</span></div>
+            <div className="field"><label htmlFor="campaign-sequence">Автоматическая цепочка</label><select id="campaign-sequence" className="select" value={form.sequenceId} onChange={set("sequenceId")} disabled={loadingOptions}><option value="">Без цепочки</option>{sequences.map((sequence) => <option key={sequence.id} value={sequence.id}>{sequence.name}</option>)}</select></div>
           </div>
-          <div className="field">
-            <label>Description</label>
-            <textarea className="input" rows={3} value={form.description} onChange={set("description")} placeholder="Describe the goal of this campaign" />
-          </div>
-          <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
-            <div className="section-label">AI Campaign Copilot</div>
-            <div className="field"><label>Campaign goal</label><textarea className="input" rows={2} value={aiGoal} onChange={(e) => setAiGoal(e.target.value)} placeholder="Announce the new product plan to active customers" /></div>
-            <div className="field"><label>Tone of voice</label><input className="input" value={aiTone} onChange={(e) => setAiTone(e.target.value)} /></div>
-            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}><button type="button" className="btn" onClick={generateDraft} disabled={aiLoading || aiGoal.length < 3}>{aiLoading ? "Generating..." : "Generate draft"}</button><button type="button" className="btn" onClick={generateSubjects} disabled={aiLoading || aiGoal.length < 3}>Generate 5–10 subjects</button></div>
-            {subjects.length > 0 && <div className="stack" style={{ marginTop: 12, gap: 6 }}>{subjects.map((subject) => <button type="button" className="btn" key={subject.text} style={{ textAlign: "left" }} onClick={() => setForm((current) => ({ ...current, description: `${current.description}\nSubject: ${subject.text}` }))}><strong>{subject.text}</strong><span className="small muted"> · {subject.angle}</span></button>)}</div>}
-            {draft.body && <div className="stack" style={{ marginTop: 12, gap: 8 }}><div className="field"><label>Generated subject</label><input className="input" value={draft.subject} onChange={(e) => setDraft((current) => ({ ...current, subject: e.target.value }))} /></div><div className="field"><label>Generated preheader</label><input className="input" value={draft.preheader} onChange={(e) => setDraft((current) => ({ ...current, preheader: e.target.value }))} /></div><div className="field"><label>Generated body</label><textarea className="input" rows={6} value={draft.body} onChange={(e) => setDraft((current) => ({ ...current, body: e.target.value }))} /></div><div className="small muted">The draft is not sent automatically. Save it as a template to use it in a campaign.</div></div>}
-          </div>
-          <div className="field">
-            <label>Дневной лимит</label>
-            <input className="input" type="number" min={1} value={form.dailyLimit} onChange={set("dailyLimit")} />
-          </div>
+        </details>
 
-          <div className="field">
-            <label>Template</label>
-            <select className="select" value={form.templateId} onChange={set("templateId")} disabled={loadingOptions}>
-              <option value="">None</option>
-              {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+        <details className="form-extra">
+          <summary>Помощник ИИ</summary>
+          <div className="form-extra-content">
+            <p className="small muted">Опишите задачу — помощник подготовит черновик. Он не отправляет письма автоматически.</p>
+            <div className="field"><label htmlFor="ai-goal">Что нужно предложить</label><textarea id="ai-goal" className="input" rows={2} value={aiGoal} onChange={(event) => setAiGoal(event.target.value)} placeholder="Предложить сотрудничество активным клиентам" /></div>
+            <div className="field"><label htmlFor="ai-tone">Тон письма</label><input id="ai-tone" className="input" value={aiTone} onChange={(event) => setAiTone(event.target.value)} /></div>
+            <div className="row ai-actions"><button type="button" className="btn" onClick={() => void generateDraft()} disabled={aiLoading || aiGoal.length < 3}>{aiLoading ? "Готовим…" : "Подготовить черновик"}</button><button type="button" className="btn" onClick={() => void generateSubjects()} disabled={aiLoading || aiGoal.length < 3}>Предложить темы</button></div>
+            {subjects.length > 0 && <div className="stack ai-results">{subjects.map((subject) => <button type="button" className="btn ai-subject" key={subject.text} onClick={() => setForm((current) => ({ ...current, description: `${current.description}\nТема: ${subject.text}` }))}><strong>{subject.text}</strong><span className="small muted"> · {subject.angle}</span></button>)}</div>}
+            {draft.body && <div className="stack ai-results"><div className="field"><label>Тема</label><input className="input" value={draft.subject} onChange={(event) => setDraft((current) => ({ ...current, subject: event.target.value }))} /></div><div className="field"><label>Прехедер</label><input className="input" value={draft.preheader} onChange={(event) => setDraft((current) => ({ ...current, preheader: event.target.value }))} /></div><div className="field"><label>Текст письма</label><textarea className="input" rows={6} value={draft.body} onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))} /></div></div>}
           </div>
-          <div className="field">
-            <label>Sequence</label>
-            <select className="select" value={form.sequenceId} onChange={set("sequenceId")} disabled={loadingOptions}>
-              <option value="">None</option>
-              {sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Segment</label>
-            <select className="select" value={form.segmentId} onChange={set("segmentId")} disabled={loadingOptions}>
-              <option value="">All leads</option>
-              {segments.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </div>
+        </details>
 
-          {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
-
-          <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading || loadingOptions}>
-            {loading ? "Creating..." : "Создать кампанию"}
-          </button>
-        </form>
-      </FadeContent>
+        {error && <div className="friendly-error" role="alert">{error}</div>}
+        <div className="form-actions"><Link href="/campaigns" className="btn">Отмена</Link><button className="btn btn-primary btn-lg" disabled={loading || loadingOptions}>{loading ? "Создаём…" : "Создать рассылку"}</button></div>
+      </form>
     </div>
   );
 }
