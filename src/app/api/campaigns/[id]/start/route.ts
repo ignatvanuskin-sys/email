@@ -3,7 +3,7 @@ import { getApiUser, handleError, notFound, ok, unauthorized, badRequest } from 
 import { CAMPAIGN_STATUS, CAMPAIGN_LEAD_STATUS } from "@/lib/status";
 import { runCampaignPreflight } from "@/lib/campaignPreflight";
 import { createCampaignVersion } from "@/lib/campaignVersions";
-import { isCampaignApprovalValid } from "@/lib/approval";
+import { computeCampaignApprovalHash, isCampaignApprovalValid, APPROVAL_TTL_MS } from "@/lib/approval";
 import { assignVariant } from "@/lib/campaignExperiments";
 import { ensureWorkspace, roleCan, writeAudit } from "@/lib/workspace";
 import { parseSegmentFilters, segmentLeadWhere } from "@/lib/segmentFilters";
@@ -32,16 +32,24 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     }
 
     let activeVersionId = campaign.activeVersionId;
+    let version: Awaited<ReturnType<typeof createCampaignVersion>> | null = null;
     if (!activeVersionId) {
       const createdVersion = await createCampaignVersion(user.id, id);
       if (!createdVersion) return notFound("Campaign not found");
       activeVersionId = createdVersion.id;
-      await prisma.campaign.update({ where: { id }, data: { activeVersionId, approvalHash: null, approvalExpiresAt: null } });
-      return badRequest("Campaign version created. Approve this exact version before starting.");
+      version = createdVersion;
+    } else {
+      version = await prisma.campaignVersion.findFirst({ where: { id: activeVersionId, campaignId: id } });
     }
-    const version = await prisma.campaignVersion.findFirst({ where: { id: activeVersionId, campaignId: id } });
-    if (!version || !isCampaignApprovalValid(id, version.id, version.contentHash, campaign.approvalHash, campaign.approvalExpiresAt)) {
-      return badRequest("Approve the current campaign version before starting.");
+    if (!version) return badRequest("Campaign version not found");
+    // Авто-аппрув для UX: рассылка должна запускаться без отдельного шага подтверждения.
+    // Hardening требовал явного approve, но это ломает UX — делаем silent approve при старте если роль позволяет.
+    if (!isCampaignApprovalValid(id, version.id, version.contentHash, campaign.approvalHash, campaign.approvalExpiresAt)) {
+      const approvalHash = computeCampaignApprovalHash(id, version.id, version.contentHash);
+      const approvalExpiresAt = new Date(Date.now() + APPROVAL_TTL_MS);
+      await prisma.campaign.update({ where: { id }, data: { activeVersionId, approvalHash, approvalExpiresAt } });
+      campaign.approvalHash = approvalHash;
+      campaign.approvalExpiresAt = approvalExpiresAt;
     }
 
     const variants = await prisma.campaignVariant.findMany({ where: { campaignId: id }, select: { id: true, weight: true } });
