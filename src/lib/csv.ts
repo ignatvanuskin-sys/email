@@ -35,10 +35,11 @@ export function parseCsv(text: string): ImportRow[] {
   return normalizeRows(records);
 }
 
-function detectDelimiter(text: string): "," | ";" {
+function detectDelimiter(text: string): "," | ";" | "\t" {
   let quoted = false;
   let commas = 0;
   let semicolons = 0;
+  let tabs = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (ch === '"') {
@@ -47,7 +48,9 @@ function detectDelimiter(text: string): "," | ";" {
     } else if (!quoted && (ch === "\n" || ch === "\r")) break;
     else if (!quoted && ch === ",") commas++;
     else if (!quoted && ch === ";") semicolons++;
+    else if (!quoted && ch === "\t") tabs++;
   }
+  if (tabs > commas && tabs > semicolons) return "\t";
   return semicolons > commas ? ";" : ",";
 }
 
@@ -84,13 +87,13 @@ export function isValidEmail(value: string): boolean {
 }
 
 const ALIASES: Record<string, string[]> = {
-  email: ["email", "email_address", "emailaddress", "e-mail", "mail"],
-  name: ["name", "full_name", "fullname", "contact_name"],
-  companyOrChannel: ["company", "company_name", "companyorchannel", "channel", "organization"],
-  websiteUrl: ["website", "website_url", "url"],
-  youtubeUrl: ["youtube", "youtube_url", "channel_url"],
-  niche: ["niche", "industry"],
-  followersCount: ["followers", "followers_count", "audience"],
+  email: ["email", "email_address", "emailaddress", "e-mail", "mail", "contact", "contact_email", "почта", "эл_почта", "элпочта", "e_mail"],
+  name: ["name", "full_name", "fullname", "contact_name", "fio", "фио", "имя", "контакт", "название"],
+  companyOrChannel: ["company", "company_name", "companyorchannel", "channel", "organization", "компания", "организация", "канал"],
+  websiteUrl: ["website", "website_url", "url", "site", "сайт"],
+  youtubeUrl: ["youtube", "youtube_url", "channel_url", "ютуб"],
+  niche: ["niche", "industry", "ниша", "тематика", "сфера"],
+  followersCount: ["followers", "followers_count", "audience", "подписчики", "аудитория", "followerscount"],
 };
 
 export function autoMapColumns(headers: string[]): ImportMapping {

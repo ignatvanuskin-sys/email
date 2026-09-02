@@ -2,21 +2,40 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { CAMPAIGN_LEAD_STATUS, SUPPRESSION_REASON } from "@/lib/status";
 import { parseUnsubscribeToken } from "@/lib/webhookSecurity";
+import { verifyUnsubscribeToken } from "@/lib/unsubscribe";
 
 async function processToken(token: string): Promise<boolean> {
+  // New path: messageId token (webhookSecurity, used by sendPipeline/journey)
   const parsed = parseUnsubscribeToken(token);
-  if (!parsed) return false;
-  const message = await prisma.emailMessage.findFirst({ where: { id: parsed.messageId, userId: parsed.userId }, include: { lead: true } });
-  const email = message?.lead.email?.trim().toLowerCase();
-  if (!message || !email) return false;
-  await prisma.$transaction([
-    prisma.suppression.upsert({ where: { userId_email: { userId: parsed.userId, email } }, create: { userId: parsed.userId, email, reason: SUPPRESSION_REASON.UNSUBSCRIBED }, update: { reason: SUPPRESSION_REASON.UNSUBSCRIBED } }),
-    prisma.lead.update({ where: { id: message.lead.id }, data: { status: "Unsubscribed" } }),
-    prisma.emailMessage.update({ where: { id: message.id }, data: { status: "Unsubscribed" } }),
-    prisma.campaignLead.updateMany({ where: { leadId: message.lead.id, status: "Pending" }, data: { status: CAMPAIGN_LEAD_STATUS.UNSUBSCRIBED } }),
-    prisma.followUp.updateMany({ where: { userId: parsed.userId, leadId: message.lead.id, status: "Pending" }, data: { status: "Cancelled" } }),
-  ]);
-  return true;
+  if (parsed) {
+    const message = await prisma.emailMessage.findFirst({ where: { id: parsed.messageId, userId: parsed.userId }, include: { lead: true } });
+    const email = message?.lead.email?.trim().toLowerCase();
+    if (message && email) {
+      await prisma.$transaction([
+        prisma.suppression.upsert({ where: { userId_email: { userId: parsed.userId, email } }, create: { userId: parsed.userId, email, reason: SUPPRESSION_REASON.UNSUBSCRIBED }, update: { reason: SUPPRESSION_REASON.UNSUBSCRIBED } }),
+        prisma.lead.update({ where: { id: message.lead.id }, data: { status: "Unsubscribed" } }),
+        prisma.emailMessage.update({ where: { id: message.id }, data: { status: "Unsubscribed" } }),
+        prisma.campaignLead.updateMany({ where: { leadId: message.lead.id, status: "Pending" }, data: { status: CAMPAIGN_LEAD_STATUS.UNSUBSCRIBED } }),
+        prisma.followUp.updateMany({ where: { userId: parsed.userId, leadId: message.lead.id, status: "Pending" }, data: { status: "Cancelled" } }),
+      ]);
+      return true;
+    }
+  }
+  // Legacy/approve path: leadId+email token (unsubscribe.ts, used by approve footer & smoke)
+  const legacy = verifyUnsubscribeToken(token);
+  if (legacy) {
+    const lead = await prisma.lead.findFirst({ where: { id: legacy.leadId, userId: legacy.userId } });
+    const email = legacy.email.trim().toLowerCase();
+    if (!lead || !email || lead.email?.trim().toLowerCase() !== email) return false;
+    await prisma.$transaction([
+      prisma.suppression.upsert({ where: { userId_email: { userId: legacy.userId, email } }, create: { userId: legacy.userId, email, reason: SUPPRESSION_REASON.UNSUBSCRIBED }, update: { reason: SUPPRESSION_REASON.UNSUBSCRIBED } }),
+      prisma.lead.update({ where: { id: lead.id }, data: { status: "Unsubscribed" } }),
+      prisma.campaignLead.updateMany({ where: { leadId: lead.id, status: "Pending" }, data: { status: CAMPAIGN_LEAD_STATUS.UNSUBSCRIBED } }),
+      prisma.followUp.updateMany({ where: { userId: legacy.userId, leadId: lead.id, status: "Pending" }, data: { status: "Cancelled" } }),
+    ]);
+    return true;
+  }
+  return false;
 }
 
 export async function POST(req: Request) {

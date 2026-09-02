@@ -26,6 +26,10 @@ function spawnPortable(command, args, options = {}) {
 }
 
 function exec(command, args, options = {}) {
+  if (process.platform === 'win32' && /\.cmd$/i.test(command)) {
+    const commandLine = [command, ...args].map(quoteCmdArg).join(' ');
+    return new Promise((resolve, reject) => execFile(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine], { windowsHide: true, ...options }, (error, stdout, stderr) => error ? reject(new Error(`${error.message}\n${stderr || ''}`)) : resolve(stdout)));
+  }
   return new Promise((resolve, reject) => execFile(command, args, { windowsHide: true, ...options }, (error, stdout, stderr) => error ? reject(new Error(`${error.message}\n${stderr || ''}`)) : resolve(stdout)));
 }
 

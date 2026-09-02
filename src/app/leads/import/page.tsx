@@ -39,9 +39,10 @@ const STEPS: Array<{ id: Step; label: string }> = [
 
 export default function ImportLeadsPage() {
   const { notify } = useToast();
-  const [tab, setTab] = useState<"file" | "google">("file");
+  const [tab, setTab] = useState<"file" | "google" | "table">("file");
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
+  const [paste, setPaste] = useState("");
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -85,6 +86,54 @@ export default function ImportLeadsPage() {
     runPreview(next);
   }, [data, runPreview]);
 
+  // Таблица / быстрый paste: парсит таб/запятая/";" и "Name <email>"
+  const parsePaste = (text: string) => {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const emailRe = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+    const headerKeywords = ["email","почта","e-mail","mail","name","имя","фио","company","компания","канал"];
+    const first = lines[0].toLowerCase();
+    const hasHeader = !emailRe.test(lines[0]) && headerKeywords.some((k) => first.includes(k));
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    const sample = dataLines.slice(0,5).join("\n");
+    let delim: string = ",";
+    if (sample.includes("\t")) delim = "\t";
+    else if (sample.includes(";") && !sample.includes(",")) delim = ";";
+    return dataLines.map((line) => {
+      const angle = line.match(/^(.*)<\s*([^\s@]+@[^\s@]+\.[^\s@]+)\s*>$/);
+      if (angle) return { email: angle[2].trim(), name: angle[1].trim().replace(/^"|"$/g,""), companyOrChannel: "" };
+      let parts: string[];
+      if (delim === "\t") parts = line.split("\t").map((s)=>s.trim());
+      else if (delim === ";") parts = line.split(";").map((s)=>s.trim());
+      else if (line.includes(",")) parts = line.split(",").map((s)=>s.trim());
+      else if (/\s{2,}/.test(line)) parts = line.split(/\s{2,}/).map((s)=>s.trim());
+      else parts = line.split(/\s+/).map((s)=>s.trim());
+      parts = parts.map((p)=>p.replace(/^"|"$/g,"").trim()).filter(Boolean);
+      const emailIdx = parts.findIndex((p)=>emailRe.test(p));
+      let email = emailIdx>=0 ? parts[emailIdx].match(emailRe)?.[0] ?? "" : "";
+      if (!email && emailRe.test(line)) email = line.match(emailRe)?.[0] ?? "";
+      const nameTokens = parts.filter((_,i)=>i!==emailIdx);
+      let name=""; let company="";
+      if (nameTokens.length===1) name=nameTokens[0];
+      else if (nameTokens.length>=2){ name=nameTokens[0]; company=nameTokens[1]; }
+      if (!name && email) name=email.split("@")[0];
+      return { email: email.trim(), name: name.trim(), companyOrChannel: company.trim() };
+    }).filter((r)=>r.email);
+  };
+
+  const tableLeads = parsePaste(paste);
+
+  const commitTable = async () => {
+    if (!tableLeads.length) { setError("Не найдено ни одного email"); return; }
+    setBusy(true); setError("");
+    try {
+      const res = await api<CommitResponse>("/api/leads/bulk", { method:"POST", body: JSON.stringify({ leads: tableLeads }) });
+      setResult(res); setStep("complete");
+      notify(`${res.imported} контактов импортировано`, res.imported ? "success" : "info");
+    } catch(e){ setError(e instanceof Error ? e.message : "Ошибка импорта таблицы"); }
+    finally{ setBusy(false); }
+  };
+
   const commit = async () => {
     if (!data) return;
     setBusy(true);
@@ -104,7 +153,7 @@ export default function ImportLeadsPage() {
     }
   };
 
-  const resetAll = () => { setData(null); setFile(null); setUrl(""); setResult(null); setStep("upload"); };
+  const resetAll = () => { setData(null); setFile(null); setUrl(""); setPaste(""); setResult(null); setStep("upload"); };
 
   return (
     <div>
@@ -139,7 +188,8 @@ export default function ImportLeadsPage() {
       {step === "upload" && (
         <div className="card card-glass" style={{ padding: 28, maxWidth: 720 }}>
           <div className="tabs" role="tablist" aria-label="Import source">
-            <button role="tab" aria-selected={tab === "file"} className={`tab ${tab === "file" ? "active" : ""}`} onClick={() => setTab("file")}>Upload file</button>
+            <button role="tab" aria-selected={tab === "file"} className={`tab ${tab === "file" ? "active" : ""}`} onClick={() => setTab("file")}>Файл</button>
+            <button role="tab" aria-selected={tab === "table"} className={`tab ${tab === "table" ? "active" : ""}`} onClick={() => setTab("table")}>Таблица</button>
             <button role="tab" aria-selected={tab === "google"} className={`tab ${tab === "google" ? "active" : ""}`} onClick={() => setTab("google")}>Google Sheets</button>
           </div>
 
@@ -155,12 +205,32 @@ export default function ImportLeadsPage() {
                 <div className="dz-icon" aria-hidden>📥</div>
                 <div className="dz-title">{file ? `Ready: ${file.name}` : "Drop CSV or XLSX here"}</div>
                 <div className="dz-sub">{file ? "Review columns next, or pick a different file." : "or click to browse"}</div>
-                <div className="dz-sub" style={{ color: "var(--text-faint)" }}>CSV / XLSX · UTF-8 supported · up to 5,000 rows</div>
-                <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => setFile(e.target.files?.[0] ?? null)} aria-label="Choose a CSV or XLSX file" />
+                <div className="dz-sub" style={{ color: "var(--text-faint)" }}>CSV / XLSX / XLS · UTF-8 · up to 5 000 rows</div>
+                <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" onChange={(e) => setFile(e.target.files?.[0] ?? null)} aria-label="Choose a CSV or XLSX file" />
               </div>
+              <div className="small muted" style={{ marginTop:10 }}>Поддерживаются русские заголовки: «Почта», «Имя», «Компания». Разделители таб/запятая/«;» определяются автоматически.</div>
               <div className="row" style={{ marginTop: 20, justifyContent: "flex-end" }}>
                 <button className="btn btn-primary" disabled={!file || busy} onClick={() => runPreview()}>
                   {busy ? <><span className="spinner" /> Parsing…</> : "Preview & map columns"}
+                </button>
+              </div>
+            </div>
+          ) : tab === "table" ? (
+            <div style={{ marginTop: 20 }}>
+              <div className="field">
+                <label htmlFor="paste">Вставьте таблицу (скопируйте из Excel/Sheets)</label>
+                <textarea id="paste" className="input" rows={8} placeholder={"ivan@test.ru\tИван\tООО Тест\nalex@example.com, Alex Rivera, Acme\njane@example.com Jane Corp"} value={paste} onChange={(e)=>setPaste(e.target.value)} style={{ fontFamily:"monospace", fontSize:13 }} />
+              </div>
+              <div className="small muted">Строк: {paste.split(/\r?\n/).filter((l)=>l.trim()).length} · Найдено email: {tableLeads.length} {tableLeads.length>500 && <span style={{color:"var(--red)"}}> — максимум 500 за раз</span>}</div>
+              {tableLeads.length>0 && (
+                <div className="table-wrap" style={{ maxHeight:180, marginTop:12, border:"1px solid var(--border)", borderRadius:8 }}>
+                  <table className="data-table"><thead><tr><th>Email</th><th>Имя</th><th>Компания</th></tr></thead><tbody>{tableLeads.slice(0,20).map((r,i)=><tr key={i}><td>{r.email}</td><td>{r.name}</td><td>{r.companyOrChannel}</td></tr>)}</tbody></table>
+                  {tableLeads.length>20 && <div className="small muted" style={{ padding:6, textAlign:"center" }}>… и ещё {tableLeads.length-20}</div>}
+                </div>
+              )}
+              <div className="row" style={{ marginTop: 16, justifyContent:"flex-end" }}>
+                <button className="btn btn-primary" disabled={!paste.trim() || busy || !tableLeads.length || tableLeads.length>500} onClick={commitTable}>
+                  {busy ? <><span className="spinner" /> Импорт…</> : `Импортировать ${tableLeads.length || ""}`}
                 </button>
               </div>
             </div>

@@ -29,10 +29,22 @@ export async function POST(req: Request) {
       const file = form.get("file");
       if (!(file instanceof File)) return badRequest("Choose a CSV or XLSX file");
       if (file.size > MAX_IMPORT_BYTES) return badRequest("File exceeds the 5 MB import limit");
-      const extension = file.name.toLowerCase().split(".").pop();
-      if (!extension || !["csv", "xlsx"].includes(extension)) return badRequest("Only CSV and XLSX files are supported");
+      const extension = (file.name.toLowerCase().split(".").pop() ?? "").toLowerCase();
+      const xlsxExts = new Set(["xlsx", "xls", "xlsm"]);
+      const csvExts = new Set(["csv", "tsv", "txt"]);
+      const isXlsx = xlsxExts.has(extension);
+      const isCsv = csvExts.has(extension) || file.type.includes("csv") || file.type.includes("sheet") || file.type.includes("text");
       const bytes = Buffer.from(await file.arrayBuffer());
-      records = extension === "xlsx" ? await parseXlsx(bytes) : parseCsv(bytes.toString("utf8"));
+      const isZipFile = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+      if (!isXlsx && !isCsv && !isZipFile) {
+        return badRequest("Only CSV and XLSX files are supported");
+      }
+      if (isXlsx || isZipFile) {
+        try { records = await parseXlsx(bytes); }
+        catch { records = parseCsv(bytes.toString("utf8")); }
+      } else {
+        records = parseCsv(bytes.toString("utf8"));
+      }
     }
 
     if (!records.length) return badRequest("The source contains no data rows");

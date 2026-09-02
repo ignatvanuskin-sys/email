@@ -38,6 +38,12 @@ export default function LeadsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showQuick, setShowQuick] = useState(false);
+  const [quickTab, setQuickTab] = useState<"single" | "table">("single");
+  const [quickSingle, setQuickSingle] = useState({ email: "", name: "", company: "" });
+  const [quickPaste, setQuickPaste] = useState("");
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickMsg, setQuickMsg] = useState("");
   const { notify } = useToast();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -116,6 +122,78 @@ export default function LeadsPage() {
     await load();
   };
 
+  const handleQuickSingle = async () => {
+    if (!quickSingle.email.trim()) { setQuickMsg("Email обязателен"); return; }
+    setQuickBusy(true); setQuickMsg("");
+    try {
+      await api("/api/leads", { method: "POST", body: JSON.stringify({ email: quickSingle.email.trim(), name: quickSingle.name.trim() || quickSingle.email.split("@")[0], companyOrChannel: quickSingle.company.trim() }) });
+      notify("Контакт добавлен", "success");
+      setQuickSingle({ email: "", name: "", company: "" });
+      setShowQuick(false);
+      await load();
+    } catch (e) { setQuickMsg(e instanceof Error ? e.message : "Ошибка"); }
+    finally { setQuickBusy(false); }
+  };
+
+  const parsePaste = (text: string) => {
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const emailRe = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+    // detect header: first line has no email but contains header keywords
+    const headerKeywords = ["email","почта","e-mail","mail","name","имя","фио","company","компания","канал"];
+    const first = lines[0].toLowerCase();
+    const hasHeader = !emailRe.test(lines[0]) && headerKeywords.some((k) => first.includes(k));
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    // detect delimiter by majority
+    const sample = dataLines.slice(0, 5).join("\n");
+    let delim: string = ",";
+    if (sample.includes("\t")) delim = "\t";
+    else if (sample.includes(";") && !sample.includes(",")) delim = ";";
+    // if single column with spaces, try to split by 2+ spaces
+    return dataLines.map((line) => {
+      // "Name <email>" pattern
+      const angle = line.match(/^(.*)<\s*([^\s@]+@[^\s@]+\.[^\s@]+)\s*>$/);
+      if (angle) return { name: angle[1].trim().replace(/^"|"$/g,""), email: angle[2].trim(), companyOrChannel: "" };
+      let parts: string[];
+      if (delim === "\t") parts = line.split("\t").map((s) => s.trim());
+      else if (delim === ";") parts = line.split(";").map((s) => s.trim());
+      else if (line.includes(",")) parts = line.split(",").map((s) => s.trim());
+      else if (/\s{2,}/.test(line)) parts = line.split(/\s{2,}/).map((s) => s.trim());
+      else parts = line.split(/\s+/).map((s) => s.trim());
+      // Remove empty and handle quoted
+      parts = parts.map((p) => p.replace(/^"|"$/g, "").trim()).filter(Boolean);
+      // Find email token
+      const emailIdx = parts.findIndex((p) => emailRe.test(p));
+      let email = emailIdx >= 0 ? parts[emailIdx].match(emailRe)?.[0] ?? "" : "";
+      // If no email found but line has one token with @
+      if (!email && emailRe.test(line)) email = line.match(emailRe)?.[0] ?? "";
+      const nameTokens = parts.filter((_, i) => i !== emailIdx);
+      // Heuristic: if 1 token after removing email, it's name; if 2+ first is name, second company
+      let name = "";
+      let company = "";
+      if (nameTokens.length === 1) name = nameTokens[0];
+      else if (nameTokens.length >= 2) { name = nameTokens[0]; company = nameTokens[1]; }
+      // If angle not matched and name empty but email present, use email prefix
+      if (!name && email) name = email.split("@")[0];
+      return { email: email.trim(), name: name.trim(), companyOrChannel: company.trim() };
+    }).filter((r) => r.email);
+  };
+
+  const handleQuickTable = async () => {
+    const leads = parsePaste(quickPaste);
+    if (!leads.length) { setQuickMsg("Не найдено ни одного email. Формат: email, имя, компания (таб/запятая/пробел)"); return; }
+    if (leads.length > 500) { setQuickMsg("Максимум 500 строк за раз"); return; }
+    setQuickBusy(true); setQuickMsg("");
+    try {
+      const res = await api<{ imported: number; duplicates: number; invalid: number } >("/api/leads/bulk", { method: "POST", body: JSON.stringify({ leads }) });
+      notify(`Импортировано ${res.imported}, дубликатов ${res.duplicates}, ошибок ${res.invalid}`, res.imported ? "success" : "info");
+      setQuickPaste("");
+      setShowQuick(false);
+      await load();
+    } catch (e) { setQuickMsg(e instanceof Error ? e.message : "Ошибка импорта"); }
+    finally { setQuickBusy(false); }
+  };
+
   const columns: Array<{ key: SortKey; label: string }> = [
     { key: "leadScore", label: "Score" },
     { key: "name", label: "Name" },
@@ -133,9 +211,10 @@ export default function LeadsPage() {
           <p className="page-sub"><ShinyText text={`${leads.length} prospects in your pipeline`} speed={3} /></p>
         </div>
         <div className="row">
-          <Link href="/leads/import" className="btn btn-primary">⇪ Импортировать лиды</Link>
-          <Link href="/leads/new" className="btn">＋ Добавить лид</Link>
-        </div>
+           <button className="btn btn-primary" onClick={() => setShowQuick(true)} style={{ background: "var(--accent, #2563eb)" }}>⚡ Быстро</button>
+           <Link href="/leads/import" className="btn btn-primary">⇪ Импортировать лиды</Link>
+           <Link href="/leads/new" className="btn">＋ Добавить лид</Link>
+         </div>
       </div>
 
       <div className="toolbar">
@@ -225,6 +304,49 @@ export default function LeadsPage() {
           </div>
         </div>
         </PageTransition>
+      )}
+      {showQuick && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"grid", placeItems:"center", zIndex:80, padding:16 }} onClick={() => !quickBusy && setShowQuick(false)}>
+          <div className="card" style={{ width:"100%", maxWidth:560, padding:20, maxHeight:"90vh", overflowY:"auto" }} onClick={(e)=>e.stopPropagation()}>
+            <div className="row" style={{ justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <h3 style={{ margin:0 }}>⚡ Быстрое добавление</h3>
+              <button className="btn btn-sm" onClick={()=>setShowQuick(false)}>✕</button>
+            </div>
+            <div className="tabs" role="tablist" style={{ marginBottom:16 }}>
+              <button role="tab" aria-selected={quickTab==="single"} className={`tab ${quickTab==="single"?"active":""}`} onClick={()=>setQuickTab("single")}>Один контакт</button>
+              <button role="tab" aria-selected={quickTab==="table"} className={`tab ${quickTab==="table"?"active":""}`} onClick={()=>setQuickTab("table")}>Таблица / Паста</button>
+            </div>
+            {quickTab==="single" ? (
+              <div className="stack" style={{ gap:12 }}>
+                <div className="field"><label>Email *</label><input className="input" type="email" placeholder="alex@example.com" value={quickSingle.email} onChange={(e)=>setQuickSingle({...quickSingle,email:e.target.value})} /></div>
+                <div className="field"><label>Имя</label><input className="input" placeholder="Alex Rivera" value={quickSingle.name} onChange={(e)=>setQuickSingle({...quickSingle,name:e.target.value})} /></div>
+                <div className="field"><label>Компания / Канал</label><input className="input" placeholder="Acme Inc." value={quickSingle.company} onChange={(e)=>setQuickSingle({...quickSingle,company:e.target.value})} /></div>
+                {quickMsg && <div className="small" style={{ color:"var(--red)" }}>{quickMsg}</div>}
+                <div className="row" style={{ justifyContent:"flex-end" }}>
+                  <button className="btn" onClick={()=>setShowQuick(false)} disabled={quickBusy}>Отмена</button>
+                  <button className="btn btn-primary" onClick={handleQuickSingle} disabled={quickBusy || !quickSingle.email.trim()}>{quickBusy?"Добавление…":"Добавить"}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="stack" style={{ gap:12 }}>
+                <p className="small muted" style={{ margin:0 }}>Вставьте строки из Excel/Google Sheets. Поддерживается <b>таб, запятая, точка с запятой</b>. Форматы: <code>email</code> · <code>email, Имя, Компания</code> · <code>Имя &lt;email&gt;</code></p>
+                <textarea className="input" rows={8} placeholder={"ivan@test.ru\tИван\tООО Тест\nalex@example.com, Alex Rivera, Acme\njane@example.com Jane Corp"} value={quickPaste} onChange={(e)=>setQuickPaste(e.target.value)} style={{ fontFamily:"monospace", fontSize:13 }} />
+                <div className="small muted">Строк: {quickPaste.split(/\r?\n/).filter((l)=>l.trim()).length} · Найдено email: {parsePaste(quickPaste).length}</div>
+                {quickPaste && parsePaste(quickPaste).length>0 && (
+                  <div className="table-wrap" style={{ maxHeight:160, border:"1px solid var(--border)", borderRadius:8 }}>
+                    <table className="data-table"><thead><tr><th>Email</th><th>Имя</th><th>Компания</th></tr></thead><tbody>{parsePaste(quickPaste).slice(0,20).map((r,i)=><tr key={i}><td>{r.email}</td><td>{r.name}</td><td>{r.companyOrChannel}</td></tr>)}</tbody></table>
+                    {parsePaste(quickPaste).length>20 && <div className="small muted" style={{ padding:6, textAlign:"center" }}>… и ещё {parsePaste(quickPaste).length-20}</div>}
+                  </div>
+                )}
+                {quickMsg && <div className="small" style={{ color:"var(--red)" }}>{quickMsg}</div>}
+                <div className="row" style={{ justifyContent:"flex-end" }}>
+                  <button className="btn" onClick={()=>setShowQuick(false)} disabled={quickBusy}>Отмена</button>
+                  <button className="btn btn-primary" onClick={handleQuickTable} disabled={quickBusy || !quickPaste.trim()}>{quickBusy?"Импорт…":`Импортировать ${parsePaste(quickPaste).length || ""}`}</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
