@@ -23,7 +23,7 @@ export default function NewSequencePage() {
       });
       router.push(`/sequences/${res.sequence.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Create failed");
+      setError("Не удалось создать автоматическую цепочку. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -33,32 +33,32 @@ export default function NewSequencePage() {
     <div>
       <div className="page-head">
         <div>
-          <h1 className="page-title">New sequence</h1>
-          <p className="page-sub">Create a multi-step email sequence.</p>
+          <h1 className="page-title">Новая цепочка</h1>
+          <p className="page-sub">Создайте цепочку писем в несколько шагов.</p>
         </div>
-        <Link href="/sequences" className="btn">Back to sequences</Link>
+        <Link href="/sequences" className="btn">Назад к цепочкам</Link>
       </div>
 
       <form className="card" style={{ maxWidth: 560, padding: 24 }} onSubmit={submit}>
         <div className="field">
-          <label>Name *</label>
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Welcome sequence" />
+          <label>Название *</label>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Например, повторный контакт после первого письма" />
         </div>
         <div className="field">
-          <label>Start from preset</label>
+          <label>Начать с готового варианта</label>
           <select className="select" value={preset} onChange={(e) => setPreset(e.target.value)}>
-            <option value="">Blank sequence</option>
-            <option value="Welcome">Welcome</option>
-            <option value="AbandonedCart">Abandoned cart</option>
-            <option value="Reactivation">Reactivation</option>
+            <option value="">Пустая цепочка</option>
+            <option value="Welcome">Приветственная</option>
+            <option value="AbandonedCart">Брошенная корзина</option>
+            <option value="Reactivation">Возобновление контакта</option>
           </select>
-          <div className="small muted">Presets create trigger and starter steps automatically.</div>
+          <div className="small muted">Готовый вариант сам добавит событие запуска и первые шаги.</div>
         </div>
 
         {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
 
         <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
-          {loading ? "Creating..." : "Create sequence"}
+          {loading ? "Создание…" : "Создать цепочку"}
         </button>
       </form>
     </div>

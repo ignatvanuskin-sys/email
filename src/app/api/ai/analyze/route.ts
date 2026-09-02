@@ -3,12 +3,12 @@ import { getApiUser, handleError, notFound, ok, readJson, unauthorized, badReque
 import { z } from "zod";
 import { analyzeLead, getActiveAiClient } from "@/lib/ai";
 import { computeScore } from "@/lib/leadScore";
-import { rateLimit } from "@/lib/rateLimit";
+import { requestRateLimit } from "@/lib/rateLimit";
 
 const schema = z.object({ leadId: z.string().min(1) });
 
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "ai-analyze", 20, 60 * 1000);
+  const limited = await requestRateLimit(req, "ai-analyze", 20, 60 * 1000);
   if (limited) return limited;
   try {
     const user = await getApiUser();

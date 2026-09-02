@@ -2,10 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { getApiUser, handleError, notFound, ok, readJson, unauthorized, badRequest } from "@/lib/api";
 import { emailEditActionSchema } from "@/lib/validation";
 import { editEmail, getActiveAiClient } from "@/lib/ai";
-import { rateLimit } from "@/lib/rateLimit";
+import { requestRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "ai-edit", 20, 60 * 1000);
+  const limited = await requestRateLimit(req, "ai-edit", 20, 60 * 1000);
   if (limited) return limited;
   try {
     const user = await getApiUser();

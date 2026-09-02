@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { getApiUser, badRequest, ok, readJson, unauthorized } from "@/lib/api";
+import { getApiUser, apiError, badRequest, ok, readJson, unauthorized } from "@/lib/api";
 import { decryptCredentials } from "@/lib/crypto";
 import { chatOpenRouter, OpenRouterError } from "@/lib/openrouter";
-import { rateLimit } from "@/lib/rateLimit";
+import { requestRateLimit } from "@/lib/rateLimit";
 
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "provider-test", 10, 10 * 60 * 1000);
+  const limited = await requestRateLimit(req, "provider-test", 10, 10 * 60 * 1000);
   if (limited) return limited;
   const user = await getApiUser();
   if (!user) return unauthorized();
@@ -33,7 +33,11 @@ export async function POST(req: Request) {
     await chatOpenRouter(apiKey, model, "Ответь одним словом.", "Готов?");
     return ok({ ok: true, message: "Подключение к OpenRouter работает" });
   } catch (err) {
-    if (err instanceof OpenRouterError) return badRequest(err.message);
-    return badRequest("Не удалось подключиться к OpenRouter");
+    if (err instanceof OpenRouterError) {
+      console.warn("[openrouter-provider-rejected]");
+      return apiError("OpenRouter connection was rejected", 502, "AI_PROVIDER_REJECTED");
+    }
+    console.error("[openrouter-provider-error]", { err });
+    return apiError("Could not connect to OpenRouter", 502, "AI_PROVIDER_UNAVAILABLE");
   }
 }

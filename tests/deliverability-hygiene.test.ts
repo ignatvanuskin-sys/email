@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { dkimDnsValue, generateDkimKeyPair, normalizeDomain, verifyDomainDns } from "../src/lib/deliverability";
 import { inspectEmail, normalizeEmailAddress } from "../src/lib/emailHygiene";
-import { createUnsubscribeToken, parseUnsubscribeToken, signValue, verifySignature } from "../src/lib/webhookSecurity";
+import { createUnsubscribeToken, parseUnsubscribeToken, signBouncePayload, signValue, verifyBounceSignature, verifySignature } from "../src/lib/webhookSecurity";
 
 describe("deliverability", () => {
   it("normalizes valid international domains and rejects URLs", () => {
@@ -59,6 +59,16 @@ describe("webhook security", () => {
     const payload = JSON.stringify({ eventId: "event-1" });
     expect(verifySignature(payload, signValue(payload))).toBe(true);
     expect(verifySignature(`${payload}x`, signValue(payload))).toBe(false);
+  });
+
+  it("uses the bounce secret and rejects stale webhook replays", () => {
+    const body = JSON.stringify({ eventId: "event-1" });
+    const now = Math.floor(Date.now() / 1000);
+    const timestamp = String(now);
+    const signature = signBouncePayload(timestamp, body);
+    expect(verifyBounceSignature(body, timestamp, signature, now)).toBe(true);
+    expect(verifyBounceSignature(body, timestamp, signValue(`${timestamp}.${body}`), now)).toBe(false);
+    expect(verifyBounceSignature(body, timestamp, signature, now + 301)).toBe(false);
   });
 
   it("round-trips and rejects tampered unsubscribe tokens", () => {

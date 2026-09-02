@@ -24,9 +24,40 @@ export async function usageSnapshot(userId: string, plan: PlanName = "Free", dat
 export async function consumeUsage(userId: string, metric: UsageMetric, amount = 1, plan: PlanName = "Free") {
   const period = currentPeriod();
   const limit = limitFor(plan, metric);
+  if (!Number.isInteger(amount) || amount <= 0 || amount > limit) {
+    return { allowed: false, used: 0, limit, remaining: limit };
+  }
+
+  // The conditional update is the quota gate. It is evaluated by the
+  // database, so two replicas cannot both spend the same remaining unit.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const updatedCount = await prisma.usageCounter.updateMany({
+      where: { userId, period, metric, used: { lte: limit - amount } },
+      data: { used: { increment: amount } },
+    });
+    if (updatedCount.count === 1) {
+      const updated = await prisma.usageCounter.findUnique({ where: { userId_period_metric: { userId, period, metric } } });
+      const used = updated?.used ?? amount;
+      return { allowed: true, used, limit, remaining: Math.max(0, limit - used) };
+    }
+
+    const current = await prisma.usageCounter.findUnique({ where: { userId_period_metric: { userId, period, metric } } });
+    if (current && current.used + amount > limit) {
+      return { allowed: false, used: current.used, limit, remaining: Math.max(0, limit - current.used) };
+    }
+    if (!current) {
+      try {
+        const created = await prisma.usageCounter.create({ data: { userId, period, metric, used: amount } });
+        return { allowed: true, used: created.used, limit, remaining: Math.max(0, limit - created.used) };
+      } catch (error) {
+        // Another replica may have created the first row. Retry the conditional
+        // update once; unrelated database errors remain visible to callers.
+        if (!(error instanceof Error && "code" in error && (error as { code?: string }).code === "P2002")) throw error;
+      }
+    }
+  }
+
   const current = await prisma.usageCounter.findUnique({ where: { userId_period_metric: { userId, period, metric } } });
-  const used = current?.used ?? 0;
-  if (used + amount > limit) return { allowed: false, used, limit, remaining: Math.max(0, limit - used) };
-  const updated = await prisma.usageCounter.upsert({ where: { userId_period_metric: { userId, period, metric } }, create: { userId, period, metric, used: amount }, update: { used: { increment: amount } } });
-  return { allowed: true, used: updated.used, limit, remaining: Math.max(0, limit - updated.used) };
+  const used = current?.used ?? limit;
+  return { allowed: false, used, limit, remaining: Math.max(0, limit - used) };
 }

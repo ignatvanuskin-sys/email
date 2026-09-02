@@ -1,5 +1,5 @@
 import { parse } from "csv-parse/sync";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { inspectEmail, normalizeEmailAddress } from "./emailHygiene";
 
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
@@ -54,12 +54,32 @@ function detectDelimiter(text: string): "," | ";" | "\t" {
   return semicolons > commas ? ";" : ",";
 }
 
-export function parseXlsx(buffer: Buffer): ImportRow[] {
+export async function parseXlsx(buffer: Buffer): Promise<ImportRow[]> {
   if (buffer.byteLength > MAX_IMPORT_BYTES) throw new Error("File exceeds the 5 MB import limit");
-  const workbook = XLSX.read(buffer, { type: "buffer", cellFormula: false, cellHTML: false, cellText: true, dense: true });
-  const first = workbook.SheetNames[0];
-  if (!first) throw new Error("Workbook has no sheets");
-  const records = XLSX.utils.sheet_to_json(workbook.Sheets[first], { defval: "", raw: false }) as unknown[];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) throw new Error("Workbook has no sheets");
+  const headers: string[] = [];
+  worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+    headers[columnNumber - 1] = sanitizeCell(cell.text);
+  });
+  if (!headers.some(Boolean)) throw new Error("Workbook has no header row");
+  const records: ImportRow[] = [];
+  for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
+    const row = worksheet.getRow(rowNumber);
+    if (row.cellCount === 0) continue;
+    const record: ImportRow = {};
+    headers.forEach((header, index) => {
+      if (!header) return;
+      const cell = row.getCell(index + 1);
+      const value = cell.type === ExcelJS.ValueType.Formula && cell.value && typeof cell.value === "object" && "formula" in cell.value
+        ? `=${String(cell.value.formula)}`
+        : cell.text;
+      record[header] = sanitizeCell(value);
+    });
+    records.push(record);
+  }
   return normalizeRows(records);
 }
 

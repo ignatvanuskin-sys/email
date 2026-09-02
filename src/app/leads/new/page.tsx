@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client";
@@ -17,20 +17,18 @@ type FormState = {
 
 export default function NewLeadPage() {
   const router = useRouter();
-  const [form, setForm] = useState<FormState>({
-    name: "", companyOrChannel: "", email: "", websiteUrl: "", youtubeUrl: "", niche: "", followersCount: "",
-  });
+  const [form, setForm] = useState<FormState>({ name: "", companyOrChannel: "", email: "", websiteUrl: "", youtubeUrl: "", niche: "", followersCount: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const set = (k: keyof FormState) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (key: keyof FormState) => (event: { target: { value: string } }) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
     setLoading(true);
     setError("");
     try {
-      const res = await api<{ lead: { id: string } }>("/api/leads", {
+      const response = await api<{ lead: { id: string } }>("/api/leads", {
         method: "POST",
         body: JSON.stringify({
           name: form.name,
@@ -42,9 +40,9 @@ export default function NewLeadPage() {
           followersCount: form.followersCount ? Number(form.followersCount) : null,
         }),
       });
-      router.push(`/leads/${res.lead.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Create failed");
+      router.push(`/leads/${response.lead.id}`);
+    } catch {
+      setError("Не удалось сохранить контакт. Проверьте данные и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -53,44 +51,24 @@ export default function NewLeadPage() {
   return (
     <div>
       <div className="page-head">
-        <div>
-          <h1 className="page-title">Add a lead</h1>
-          <p className="page-sub">Record a prospect, then analyze them with AI.</p>
-        </div>
-        <Link href="/leads" className="btn">Back to leads</Link>
+        <div><h1 className="page-title">Новый контакт</h1><p className="page-sub">Заполните только то, что знаете. Остальное можно добавить позже.</p></div>
+        <Link href="/leads" className="btn">← К контактам</Link>
       </div>
-
-      <form className="card" style={{ maxWidth: 560, padding: 24 }} onSubmit={submit}>
-        <div className="field">
-          <label>Name *</label>
-          <input className="input" value={form.name} onChange={set("name")} required placeholder="Alex Rivera" />
-        </div>
-        <div className="field">
-          <label>Channel / Company</label>
-          <input className="input" value={form.companyOrChannel} onChange={set("companyOrChannel")} placeholder="ALEX RIVERA (YouTube)" />
-        </div>
-        <div className="field">
-          <label>Email</label>
-          <input className="input" type="email" value={form.email} onChange={set("email")} placeholder="alex@example.com" />
-        </div>
-        <div className="field">
-          <label>YouTube URL</label>
-          <input className="input" value={form.youtubeUrl} onChange={set("youtubeUrl")} placeholder="https://youtube.com/@channel" />
-        </div>
-        <div className="field">
-          <label>Niche</label>
-          <input className="input" value={form.niche} onChange={set("niche")} placeholder="Podcast / Education / Business" />
-        </div>
-        <div className="field">
-          <label>Followers count</label>
-          <input className="input" type="number" min={0} value={form.followersCount} onChange={set("followersCount")} placeholder="84000" />
-        </div>
-
-        {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
-
-        <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
-          {loading ? "Creating…" : "Create lead"}
-        </button>
+      <form className="card form-card" onSubmit={submit}>
+        <div className="field"><label htmlFor="lead-name">Имя или название *</label><input id="lead-name" className="input" value={form.name} onChange={set("name")} required placeholder="Например, Алексей Иванов" /></div>
+        <div className="field"><label htmlFor="lead-email">Электронная почта</label><input id="lead-email" className="input" type="email" value={form.email} onChange={set("email")} placeholder="alex@example.com" /></div>
+        <div className="field"><label htmlFor="lead-company">Компания или канал</label><input id="lead-company" className="input" value={form.companyOrChannel} onChange={set("companyOrChannel")} placeholder="Например, подкаст или компания»" /></div>
+        <details className="form-extra">
+          <summary>Добавить дополнительные сведения</summary>
+          <div className="form-extra-content">
+            <div className="field"><label htmlFor="lead-website">Сайт</label><input id="lead-website" className="input" type="url" value={form.websiteUrl} onChange={set("websiteUrl")} placeholder="https://example.com" /></div>
+            <div className="field"><label htmlFor="lead-youtube">Ссылка на YouTube</label><input id="lead-youtube" className="input" type="url" value={form.youtubeUrl} onChange={set("youtubeUrl")} placeholder="https://youtube.com/@channel" /></div>
+            <div className="field"><label htmlFor="lead-niche">Сфера</label><input id="lead-niche" className="input" value={form.niche} onChange={set("niche")} placeholder="Образование, бизнес, подкасты" /></div>
+            <div className="field"><label htmlFor="lead-followers">Количество подписчиков</label><input id="lead-followers" className="input" type="number" min={0} value={form.followersCount} onChange={set("followersCount")} placeholder="Необязательно" /></div>
+          </div>
+        </details>
+        {error && <div className="friendly-error" role="alert">{error}</div>}
+        <div className="form-actions"><Link href="/leads" className="btn">Отмена</Link><button className="btn btn-primary btn-lg" disabled={loading}>{loading ? "Сохраняем…" : "Сохранить контакт"}</button></div>
       </form>
     </div>
   );

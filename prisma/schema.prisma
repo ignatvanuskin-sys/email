@@ -139,6 +139,14 @@ model RateLimitCounter {
   @@index([expiresAt])
 }
 
+model WorkerNonce {
+  nonce     String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model IntegrationConnection {
   id                     String    @id @default(cuid())
   userId                 String
@@ -175,6 +183,16 @@ model Subscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model BillingWebhookEvent {
+  id          String   @id
+  type        String
+  status      String   @default("processing")
+  receivedAt  DateTime @default(now())
+  processedAt DateTime?
+
+  @@index([status, receivedAt])
+}
+
 model OAuthState {
   id        String    @id @default(cuid())
   userId    String
@@ -195,6 +213,7 @@ model SendJob {
   logicalKey        String   @default("")
   status            String    @default("Queued")
   payload           String    @default("{}")
+  dedupeKey         String?   @unique
   attempts          Int       @default(0)
   maxAttempts       Int       @default(3)
   nextRunAt         DateTime  @default(now())
@@ -493,6 +512,8 @@ model Campaign {
   sendTimeOptimization Boolean   @default(false)
   startedAt            DateTime?
   completedAt          DateTime?
+  dispatchLockUntil    DateTime?
+  dispatchLockToken    String?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -637,6 +658,8 @@ model JourneyEnrollment {
   status      String    @default("Active")
   currentStep Int       @default(0)
   nextRunAt   DateTime?
+  claimToken  String?
+  claimUntil  DateTime?
   lastError   String?
   contextJson String    @default("{}")
   createdAt   DateTime  @default(now())

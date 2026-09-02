@@ -49,7 +49,7 @@ export default function EditTemplatePage() {
       setForm({ name: t.name, category: t.category, subject: t.subject, body: t.body, documentJson: t.documentJson ?? "" });
       if (t.documentJson) { try { const parsed = JSON.parse(t.documentJson) as EmailDocument; if (parsed.version === 1 && Array.isArray(parsed.blocks)) { setDocument(parsed); setBuilderMode(true); } } catch { /* legacy body remains active */ } }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError("Не удалось загрузить шаблон.");
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export default function EditTemplatePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const loadSections = async () => { try { const result = await api<{ sections: typeof sections }>("/api/templates/sections"); setSections(result.sections); } catch (e) { notify(e instanceof Error ? e.message : "Sections failed", "error"); } };
+  const loadSections = async () => { try { const result = await api<{ sections: typeof sections }>("/api/templates/sections"); setSections(result.sections); } catch { notify("Не удалось загрузить блоки.", "error"); } };
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -75,7 +75,7 @@ export default function EditTemplatePage() {
   };
 
   const saveSection = async () => { if (!sectionName.trim()) return; try { await api("/api/templates/sections", { method: "POST", body: JSON.stringify({ name: sectionName, documentJson: JSON.stringify(document) }) }); setSectionName(""); await loadSections(); notify("Повторно используемый блок сохранён", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Не удалось сохранить блок", "error"); } };
-  const insertSection = (section: { documentJson: string }) => { try { const value = JSON.parse(section.documentJson) as EmailDocument; if (value.version === 1) { setDocument((current) => ({ ...current, blocks: [...current.blocks, ...value.blocks.map((block) => ({ ...block, id: `${block.id}-${Date.now()}` }))] })); setBuilderMode(true); } } catch { notify("Invalid reusable section", "error"); } };
+  const insertSection = (section: { documentJson: string }) => { try { const value = JSON.parse(section.documentJson) as EmailDocument; if (value.version === 1) { setDocument((current) => ({ ...current, blocks: [...current.blocks, ...value.blocks.map((block) => ({ ...block, id: `${block.id}-${Date.now()}` }))] })); setBuilderMode(true); } } catch { notify("Не удалось вставить сохранённый блок.", "error"); } };
 
   const loadPreview = async () => {
     setPreviewLoading(true);
@@ -84,7 +84,7 @@ export default function EditTemplatePage() {
       setPreview(result);
       const compatibilityResult = await api<{ issues: typeof compatibility }>("/api/emails/compatibility", { method: "POST", body: JSON.stringify({ html: result.html }) });
       setCompatibility(compatibilityResult.issues);
-    } catch (e) { notify(e instanceof Error ? e.message : "Preview failed", "error"); }
+    } catch { notify("Не удалось подготовить предпросмотр.", "error"); }
     finally { setPreviewLoading(false); }
   };
 
@@ -97,31 +97,31 @@ export default function EditTemplatePage() {
         method: "PATCH",
         body: JSON.stringify({ ...form, documentJson: builderMode ? JSON.stringify(document) : null }),
       });
-      notify("Template saved", "success");
+      notify("Шаблон сохранён.", "success");
       router.push("/templates");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError("Не удалось сохранить шаблон.");
     } finally {
       setSaving(false);
     }
   };
 
   const remove = async () => {
-    if (!window.confirm(`Удалить template "${form.name}"?`)) return;
+    if (!window.confirm(`Удалить шаблон «${form.name}»?`)) return;
     setDeleting(true);
     try {
       await api(`/api/templates/${params.id}`, { method: "DELETE" });
-      notify("Template deleted", "success");
+      notify("Шаблон удалён.", "success");
       router.push("/templates");
-    } catch (e) {
-      notify(e instanceof Error ? e.message : "Удалить failed", "error");
+    } catch {
+      notify("Не удалось удалить шаблон.", "error");
     } finally {
       setDeleting(false);
     }
   };
 
   if (error) return <div className="empty">{error}</div>;
-  if (loading) return <div className="empty">Загрузка шаблона...</div>;
+  if (loading) return <div className="empty">Загрузка шаблона…</div>;
 
   return (
     <div>
@@ -135,48 +135,48 @@ export default function EditTemplatePage() {
 
       <form className="card" style={{ maxWidth: 640, padding: 24 }} onSubmit={submit}>
         <div className="field">
-          <label>Name *</label>
-          <input className="input" value={form.name} onChange={set("name")} required placeholder="Partnership intro" />
+          <label>Название *</label>
+          <input className="input" value={form.name} onChange={set("name")} required placeholder="Например, знакомство о сотрудничестве" />
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
           <div className="row"><div className="section-label grow">Конструктор письма</div><button type="button" className="btn btn-sm" onClick={() => setBuilderMode((value) => !value)}>{builderMode ? "Использовать обычный текст" : "Использовать конструктор"}</button></div>
           {builderMode && <BuilderPanel document={document} selectedBlock={selectedBlock} onSelect={setSelectedBlock} onChange={setDocument} />}
           {builderMode && <div className="stack" style={{ gap: 8, marginTop: 12 }}><div className="row"><input className="input grow" value={sectionName} onChange={(e) => setSectionName(e.target.value)} placeholder="Название блока" /><button type="button" className="btn btn-sm" onClick={saveSection} disabled={!sectionName.trim()}>Сохранить блок</button><button type="button" className="btn btn-sm" onClick={loadSections}>Загрузить блоки</button></div>{sections.map((section) => <button type="button" className="btn btn-sm" style={{ textAlign: "left" }} key={section.id} onClick={() => insertSection(section)}>Вставить: {section.name}</button>)}</div>}
-          <div className="small muted" style={{ marginTop: 8 }}>Build with email-safe blocks. Legacy subject/body content remains available when builder mode is off.</div>
+          <div className="small muted" style={{ marginTop: 8 }}>Build with email-safe blocks. Обычный текст доступен, если конструктор выключен.</div>
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
-          <div className="row"><div className="section-label grow">Предпросмотр письма</div><button type="button" className="btn btn-sm" onClick={loadPreview} disabled={previewLoading}>{previewLoading ? "Подготовка..." : "Предпросмотр на компьютере"}</button></div>
+          <div className="row"><div className="section-label grow">Предпросмотр письма</div><button type="button" className="btn btn-sm" onClick={loadPreview} disabled={previewLoading}>{previewLoading ? "Подготовка…" : "Предпросмотр на компьютере"}</button></div>
           {preview && <><div className="small muted" style={{ margin: "8px 0" }}>Тема: {preview.subject}</div><iframe title="Предпросмотр письма" sandbox="allow-same-origin" srcDoc={preview.html} style={{ width: "100%", height: 360, border: "1px solid var(--border)", borderRadius: 8, background: "white" }} /><details style={{ marginTop: 8 }}><summary className="small">Текстовая версия</summary><pre className="small" style={{ whiteSpace: "pre-wrap" }}>{preview.text}</pre></details></>}
           {compatibility.length > 0 && <div className="stack" style={{ gap: 5, marginTop: 8 }}>{compatibility.map((issue) => <div className="row small" key={`${issue.code}-${issue.client}`}><span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity}</span><span className="grow">{issue.message}</span><span className="muted">{issue.client}</span></div>)}</div>}
         </div>
 
         <div className="card" style={{ padding: 14, marginBottom: 16, background: "var(--surface-2)" }}>
           <div className="row"><div className="section-label grow">Динамический контент</div><button type="button" className="btn btn-sm" onClick={() => setDynamicMode((value) => !value)}>{dynamicMode ? "Отмена" : "Добавить правило"}</button></div>
-          {dynamicMode && <div className="stack" style={{ gap: 8, marginTop: 10 }}><div className="row"><select className="select grow" value={dynamicField} onChange={(e) => setDynamicField(e.target.value)}><option value="niche">Ниша</option><option value="company">Компания</option><option value="firstName">Имя</option></select><input className="input grow" value={dynamicValue} onChange={(e) => setDynamicValue(e.target.value)} placeholder="Значение, например SaaS" /></div><textarea className="input" rows={3} value={dynamicContent} onChange={(e) => setDynamicContent(e.target.value)} placeholder="Content shown when the rule matches" /><button type="button" className="btn btn-primary" onClick={insertDynamic}>Вставить динамический блок</button></div>}
-          <div className="small muted" style={{ marginTop: 8 }}>A dynamic block is stored as safe JSON and rendered before sending. Existing plain-text templates remain unchanged.</div>
+          {dynamicMode && <div className="stack" style={{ gap: 8, marginTop: 10 }}><div className="row"><select className="select grow" value={dynamicField} onChange={(e) => setDynamicField(e.target.value)}><option value="niche">Ниша</option><option value="company">Компания</option><option value="firstName">Имя</option></select><input className="input grow" value={dynamicValue} onChange={(e) => setDynamicValue(e.target.value)} placeholder="Значение, например SaaS" /></div><textarea className="input" rows={3} value={dynamicContent} onChange={(e) => setDynamicContent(e.target.value)} placeholder="Текст, который будет показан при совпадении правила" /><button type="button" className="btn btn-primary" onClick={insertDynamic}>Вставить динамический блок</button></div>}
+          <div className="small muted" style={{ marginTop: 8 }}>Динамический блок сохраняется отдельно и добавляется перед отправкой. Обычные текстовые шаблоны не изменяются.</div>
         </div>
 
         <div className="field">
-          <label>Category</label>
+          <label>Категория</label>
           <select className="select" value={form.category} onChange={set("category")}>
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
 
         <div className="field">
-          <label>Subject *</label>
-          <input className="input" value={form.subject} onChange={set("subject")} required placeholder="Partnership with {{company}}" />
+          <label>Тема письма *</label>
+          <input className="input" value={form.subject} onChange={set("subject")} required placeholder="Предложение для {{company}}" />
         </div>
 
         <div className="field">
-          <label>Body *</label>
-          <textarea className="input" rows={8} value={form.body} onChange={set("body")} required placeholder="Hi {{firstName}},..." />
+          <label>Текст письма *</label>
+          <textarea className="input" rows={8} value={form.body} onChange={set("body")} required placeholder="Здравствуйте, {{firstName}}!" />
         </div>
 
         <div className="field">
-          <label>Variables</label>
+          <label>Переменные</label>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
             {VARIABLES.map((v) => (
               <span key={v} className="badge" style={{ cursor: "pointer", background: "var(--accent-muted)", color: "var(--accent)" }} onClick={() => insertVar(v)}>
@@ -190,10 +190,10 @@ export default function EditTemplatePage() {
 
         <div className="row" style={{ gap: 12 }}>
           <button className="btn btn-primary btn-lg grow" disabled={saving || deleting}>
-            {saving ? "Saving..." : "Сохранить шаблон"}
+            {saving ? "Сохраняем…" : "Сохранить шаблон"}
           </button>
           <button type="button" className="btn btn-outline-danger btn-lg" disabled={saving || deleting} onClick={remove}>
-            {deleting ? "Deleting..." : "Удалить"}
+            {deleting ? "Удаляем…" : "Удалить"}
           </button>
         </div>
       </form>

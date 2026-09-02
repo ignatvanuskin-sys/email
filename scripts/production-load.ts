@@ -1,3 +1,5 @@
+export {};
+
 async function main() {
   const baseUrl = process.env.SMOKE_BASE_URL ?? process.env.APP_URL ?? "http://localhost:3000";
   const concurrency = Math.min(Number(process.env.LOAD_CONCURRENCY ?? 10), 100);

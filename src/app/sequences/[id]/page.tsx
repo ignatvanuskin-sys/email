@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/client";
 import { useToast } from "@/components/Toast";
+import { formatDate } from "@/lib/utils";
 import ShinyText from "@/components/react-bits/ShinyText";
 import SpotlightCard from "@/components/react-bits/SpotlightCard";
 import FadeContent from "@/components/react-bits/FadeContent";
@@ -65,7 +66,7 @@ export default function SequenceDetailPage() {
       setExitEventType(d.sequence.exitEventType ?? "");
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError("Не удалось загрузить автоматическую цепочку. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -80,9 +81,9 @@ export default function SequenceDetailPage() {
         method: "PATCH",
         body: JSON.stringify({ name }),
       });
-      notify("Name updated", "success");
+      notify("Название обновлено.", "success");
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Update failed", "error");
+      notify("Не удалось сохранить изменения.", "error");
     } finally {
       setSaving(false);
     }
@@ -91,34 +92,34 @@ export default function SequenceDetailPage() {
   const saveTrigger = async () => {
     try {
       await api(`/api/sequences/${params.id}`, { method: "PATCH", body: JSON.stringify({ triggerType, isActive }) });
-      notify(isActive ? "Journey activated" : "Journey saved", "success");
-    } catch (e) { notify(e instanceof Error ? e.message : "Update failed", "error"); }
+      notify(isActive ? "Цепочка активирована." : "Цепочка сохранена.", "success");
+    } catch (e) { notify("Не удалось сохранить настройки запуска.", "error"); }
   };
 
-  const saveAutomation = async () => { try { await api(`/api/sequences/${params.id}/automation`, { method: "PATCH", body: JSON.stringify({ channel, conditionJson: conditionJson || null, goalEventType: goalEventType || null, exitEventType: exitEventType || null }) }); notify("Automation rules saved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Automation save failed", "error"); } };
-  const generateAutomation = async () => { try { const result = await api<{ automation: { conditions: unknown[]; goalEventType: string | null; exitEventType: string | null } }>("/api/ai/automation", { method: "POST", body: JSON.stringify({ description: aiAutomationDescription }) }); setConditionJson(JSON.stringify(result.automation.conditions)); setGoalEventType(result.automation.goalEventType ?? ""); setExitEventType(result.automation.exitEventType ?? ""); notify("Automation rules generated. Review before saving.", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Automation generation failed", "error"); } };
+  const saveAutomation = async () => { try { await api(`/api/sequences/${params.id}/automation`, { method: "PATCH", body: JSON.stringify({ channel, conditionJson: conditionJson || null, goalEventType: goalEventType || null, exitEventType: exitEventType || null }) }); notify("Правила автоматизации сохранены.", "success"); } catch (e) { notify("Не удалось сохранить правила автоматизации.", "error"); } };
+  const generateAutomation = async () => { try { const result = await api<{ automation: { conditions: unknown[]; goalEventType: string | null; exitEventType: string | null } }>("/api/ai/automation", { method: "POST", body: JSON.stringify({ description: aiAutomationDescription }) }); setConditionJson(JSON.stringify(result.automation.conditions)); setGoalEventType(result.automation.goalEventType ?? ""); setExitEventType(result.automation.exitEventType ?? ""); notify("Правила автоматизации созданы. Проверьте их перед сохранением.", "success"); } catch (e) { notify("Не удалось создать правила автоматизации.", "error"); } };
 
   const addStep = async () => {
     try {
       await api(`/api/sequences/${params.id}/steps`, {
         method: "POST",
-        body: JSON.stringify({ delayDays: 1, subject: "New step", body: "" }),
+        body: JSON.stringify({ delayDays: 1, subject: "Новый шаг", body: "" }),
       });
-      notify("Step added", "success");
+      notify("Шаг добавлен.", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Failed to add step", "error");
+      notify("Не удалось добавить шаг.", "error");
     }
   };
 
   const deleteStep = async (stepId: string) => {
-    if (!window.confirm("Delete this step?")) return;
+    if (!window.confirm("Удалить этот шаг?")) return;
     try {
       await api(`/api/sequences/${params.id}/steps?stepId=${stepId}`, { method: "DELETE" });
-      notify("Step deleted", "success");
+      notify("Шаг удалён.", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Failed to delete step", "error");
+      notify("Не удалось удалить шаг.", "error");
     }
   };
 
@@ -130,7 +131,7 @@ export default function SequenceDetailPage() {
       });
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Update failed", "error");
+      notify("Не удалось сохранить изменения.", "error");
     }
   };
 
@@ -145,16 +146,16 @@ export default function SequenceDetailPage() {
         method: "PATCH",
         body: JSON.stringify({ stepId, ...stepForm }),
       });
-      notify("Step updated", "success");
+      notify("Шаг обновлён.", "success");
       setEditingStep(null);
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Update failed", "error");
+      notify("Не удалось сохранить изменения.", "error");
     }
   };
 
   if (error) return <div className="empty">{error}</div>;
-  if (loading || !data) return <div className="empty">Loading sequence...</div>;
+  if (loading || !data) return <div className="empty">Загрузка цепочки…</div>;
 
   return (
     <div>
@@ -170,30 +171,30 @@ export default function SequenceDetailPage() {
           {saving && <span className="spinner" />}
         </div>
         <div className="row">
-          <Link href="/sequences" className="btn">Back</Link>
+          <Link href="/sequences" className="btn">Назад</Link>
         </div>
       </div>
 
       <p className="page-sub" style={{ marginTop: -8, marginBottom: 20 }}>
-        <ShinyText text={`${data.steps.length} step(s) · Created ${new Date(data.sequence.createdAt).toLocaleDateString()}`} speed={3} />
+        <ShinyText text={`${data.steps.length} шагов · Создана: ${formatDate(data.sequence.createdAt)}`} speed={3} />
       </p>
 
       <SpotlightCard>
         <div className="card" style={{ padding: 18 }}>
           <div className="row" style={{ marginBottom: 18, alignItems: "end" }}>
-            <div className="field grow" style={{ margin: 0 }}><label>Event trigger</label><input className="input" value={triggerType} onChange={(e) => setTriggerType(e.target.value)} placeholder="contact.created" /></div>
-            <div className="field" style={{ margin: 0 }}><label>Channel</label><select className="select" value={channel} onChange={(e) => setChannel(e.target.value)}><option value="email">Email</option><option value="telegram">Telegram</option></select></div>
-            <label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Active</label>
-            <button className="btn btn-primary" onClick={saveTrigger}>Save trigger</button>
+            <div className="field grow" style={{ margin: 0 }}><label>Событие запуска</label><input className="input" value={triggerType} onChange={(e) => setTriggerType(e.target.value)} placeholder="contact.created" /></div>
+            <div className="field" style={{ margin: 0 }}><label>Канал</label><select className="select" value={channel} onChange={(e) => setChannel(e.target.value)}><option value="email">Почта</option><option value="telegram">Telegram</option></select></div>
+            <label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} /> Активна</label>
+            <button className="btn btn-primary" onClick={saveTrigger}>Сохранить запуск</button>
           </div>
-          <div className="card" style={{ padding: 12, marginBottom: 16, background: "var(--surface-2)" }}><div className="section-label">Conditions and exits</div><div className="row" style={{ gap: 8 }}><input className="input grow" value={goalEventType} onChange={(e) => setGoalEventType(e.target.value)} placeholder="Goal event, e.g. order.paid" /><input className="input grow" value={exitEventType} onChange={(e) => setExitEventType(e.target.value)} placeholder="Exit event, e.g. unsubscribe" /></div><textarea className="input" rows={3} value={conditionJson} onChange={(e) => setConditionJson(e.target.value)} placeholder='[{"field":"plan","operator":"equals","value":"pro"}]' style={{ marginTop: 8 }} /><div className="row" style={{ gap: 8, marginTop: 8 }}><input className="input grow" value={aiAutomationDescription} onChange={(e) => setAiAutomationDescription(e.target.value)} placeholder="Describe the automation in plain language" /><button className="btn btn-sm" onClick={generateAutomation} disabled={aiAutomationDescription.length < 5}>Generate with AI</button><button className="btn btn-sm btn-primary" onClick={saveAutomation}>Save automation rules</button></div></div>
+          <div className="card" style={{ padding: 12, marginBottom: 16, background: "var(--surface-2)" }}><div className="section-label">Условия и выход</div><div className="row" style={{ gap: 8 }}><input className="input grow" value={goalEventType} onChange={(e) => setGoalEventType(e.target.value)} placeholder="Событие цели, например order.paid" /><input className="input grow" value={exitEventType} onChange={(e) => setExitEventType(e.target.value)} placeholder="Событие выхода, например unsubscribe" /></div><textarea className="input" rows={3} value={conditionJson} onChange={(e) => setConditionJson(e.target.value)} placeholder='[{"field":"plan","operator":"equals","value":"pro"}]' style={{ marginTop: 8 }} /><div className="row" style={{ gap: 8, marginTop: 8 }}><input className="input grow" value={aiAutomationDescription} onChange={(e) => setAiAutomationDescription(e.target.value)} placeholder="Опишите автоматизацию обычными словами" /><button className="btn btn-sm" onClick={generateAutomation} disabled={aiAutomationDescription.length < 5}>Создать с помощью ИИ</button><button className="btn btn-sm btn-primary" onClick={saveAutomation}>Сохранить правила</button></div></div>
           <div className="row" style={{ marginBottom: 16 }}>
-            <div className="section-label" style={{ margin: 0 }}>Steps</div>
-            <button className="btn btn-sm btn-primary" onClick={addStep}>+ Add Step</button>
+            <div className="section-label" style={{ margin: 0 }}>Шаги</div>
+            <button className="btn btn-sm btn-primary" onClick={addStep}>＋ Добавить шаг</button>
           </div>
 
           {data.steps.length === 0 ? (
-            <div className="empty">No steps yet. Add your first step.</div>
+            <div className="empty">Шагов пока нет. Добавьте первый шаг.</div>
           ) : (
             <div className="stack" style={{ gap: 12 }}>
               {data.steps.map((step) => (
@@ -202,40 +203,40 @@ export default function SequenceDetailPage() {
                     {editingStep === step.id ? (
                       <div className="stack" style={{ gap: 8 }}>
                         <div className="field">
-                          <label>Delay (days)</label>
+                          <label>Задержка (дни)</label>
                           <input className="input" type="number" min={0} value={stepForm.delayDays} onChange={(e) => setStepForm((f) => ({ ...f, delayDays: Number(e.target.value) }))} />
                         </div>
                         <div className="field">
-                          <label>Subject</label>
+                          <label>Тема письма</label>
                           <input className="input" value={stepForm.subject} onChange={(e) => setStepForm((f) => ({ ...f, subject: e.target.value }))} />
                         </div>
                         <div className="field">
-                          <label>Body</label>
+                          <label>Текст письма</label>
                           <textarea className="input" rows={4} value={stepForm.body} onChange={(e) => setStepForm((f) => ({ ...f, body: e.target.value }))} />
                         </div>
                         <div className="row" style={{ gap: 8 }}>
-                          <button className="btn btn-sm btn-primary" onClick={() => saveStep(step.id)}>Save</button>
-                          <button className="btn btn-sm" onClick={() => setEditingStep(null)}>Cancel</button>
+                          <button className="btn btn-sm btn-primary" onClick={() => saveStep(step.id)}>Сохранить</button>
+                          <button className="btn btn-sm" onClick={() => setEditingStep(null)}>Отмена</button>
                         </div>
                       </div>
                     ) : (
                       <>
                         <div className="row" style={{ marginBottom: 6 }}>
-                          <span style={{ fontWeight: 600 }}>Step {step.position}</span>
+                          <span style={{ fontWeight: 600 }}>Шаг {step.position}</span>
                           <span className="grow" />
                           <label className="toggle-label" style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                             <input type="checkbox" checked={step.enabled} onChange={(e) => toggleStep(step.id, e.target.checked)} />
-                            Enabled
+                            Активен
                           </label>
                         </div>
-                        <div className="small muted" style={{ marginBottom: 4 }}>Delay: {step.delayDays} day(s)</div>
-                        <div className="small" style={{ fontWeight: 500 }}>{step.subject || <span className="muted">No subject</span>}</div>
+                        <div className="small muted" style={{ marginBottom: 4 }}>Задержка: {step.delayDays} дн.</div>
+                        <div className="small" style={{ fontWeight: 500 }}>{step.subject || <span className="muted">Тема не указана</span>}</div>
                         <div className="small muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
-                          {step.body ? (step.body.length > 120 ? step.body.slice(0, 120) + "..." : step.body) : <span className="muted">No body</span>}
+                          {step.body ? (step.body.length > 120 ? step.body.slice(0, 120) + "..." : step.body) : <span className="muted">Текст не указан</span>}
                         </div>
                         <div className="row" style={{ marginTop: 8, gap: 8 }}>
-                          <button className="btn btn-sm" onClick={() => startEdit(step)}>Edit</button>
-                          <button className="btn btn-sm btn-outline-danger" onClick={() => deleteStep(step.id)}>Delete</button>
+                          <button className="btn btn-sm" onClick={() => startEdit(step)}>Изменить</button>
+                          <button className="btn btn-sm btn-outline-danger" onClick={() => deleteStep(step.id)}>Удалить</button>
                         </div>
                       </>
                     )}

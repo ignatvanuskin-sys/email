@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { useToast } from "@/components/Toast";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import { campaignLeadStatusLabels, uiLabel } from "@/lib/uiLabels";
 import BlurText from "@/components/react-bits/BlurText";
 import ShinyText from "@/components/react-bits/ShinyText";
 import SpotlightCard from "@/components/react-bits/SpotlightCard";
@@ -67,6 +68,36 @@ const LEAD_STATUS_STYLES: Record<string, string> = {
   Unsubscribed: "red",
 };
 
+const PREFLIGHT_MESSAGES: Record<string, string> = {
+  provider_missing: "Подключите активный почтовый провайдер перед запуском рассылки.",
+  from_missing: "Укажите корректный адрес отправителя в настройках почты.",
+  domain_not_added: "Добавьте домен отправителя в центр доставляемости и опубликуйте SPF, DKIM и DMARC.",
+  domain_unverified: "Домен отправителя ещё не прошёл полную проверку.",
+  content_missing: "Выберите шаблон, добавьте шаг цепочки или создайте вариант A/B.",
+  subject_missing: "Укажите тему письма.",
+  body_missing: "Добавьте текст письма.",
+  subject_long: "Тема длиннее 120 символов и может быть обрезана.",
+  text_version_missing: "В HTML-письме нет содержательной текстовой версии.",
+  unsafe_html: "Небезопасный HTML или скрипты нельзя использовать в письме.",
+  image_alt_missing: "Добавьте alt-текст к изображениям для доступности.",
+  spam_trigger: "Формулировка может вызвать срабатывание спам-фильтров.",
+  subject_spam_style: "Избыток знаков препинания или заглавных букв в теме может ухудшить доставляемость.",
+  unsubscribe_injected: "В черновике нет ссылки для отписки — при отправке ClipReach добавит подписанную ссылку.",
+};
+
+function localizePreflightIssue(issue: PreflightIssue): string {
+  if (PREFLIGHT_MESSAGES[issue.code]) return PREFLIGHT_MESSAGES[issue.code];
+  if (issue.code === "invalid_merge_tag") {
+    const variable = issue.message.match(/\{\{[^}]+\}\}/)?.[0];
+    return variable ? `Недопустимая переменная шаблона: ${variable}` : "Недопустимая переменная шаблона.";
+  }
+  if (issue.code === "broken_link") {
+    const link = issue.message.match(/https?:\/\/\S+/)?.[0];
+    return link ? `Ссылка недоступна: ${link}` : "Одна из ссылок в письме недоступна.";
+  }
+  return "Проверка выявила проблему в этом пункте.";
+}
+
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -81,7 +112,7 @@ export default function CampaignDetailPage() {
   const [nameDraft, setИмяDraft] = useState("");
   const [descDraft, setDescDraft] = useState("");
   const [variantOpen, setVariantOpen] = useState(false);
-  const [variantForm, setVariantForm] = useState({ name: "Variant B", subject: "", body: "" });
+  const [variantForm, setVariantForm] = useState({ name: "Вариант B", subject: "", body: "" });
   const [preflight, setPreflight] = useState<Preflight | null>(null);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [insights, setInsights] = useState<{ summary: string; recommendations: string[] } | null>(null);
@@ -102,7 +133,7 @@ export default function CampaignDetailPage() {
       setApprovalExpiresAt(d.campaign.approvalExpiresAt ?? null);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
+      setError("Не удалось загрузить рассылку. Проверьте соединение и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -111,32 +142,33 @@ export default function CampaignDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   const loadVersions = async () => {
-    try { const result = await api<{ versions: Version[] }>(`/api/campaigns/${id}/versions`); setVersions(result.versions); } catch (e) { notify(e instanceof Error ? e.message : "Versions failed", "error"); }
+    try { const result = await api<{ versions: Version[] }>(`/api/campaigns/${id}/versions`); setVersions(result.versions); } catch { notify("Не удалось загрузить версии рассылки.", "error"); }
   };
 
   const createVersion = async () => {
-    try { const result = await api<{ version: Version }>(`/api/campaigns/${id}/versions`, { method: "POST" }); await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId: result.version.id }) }); setVersions((current) => [result.version, ...current]); setActiveVersionId(result.version.id); setApprovalExpiresAt(null); notify(`Version ${result.version.version} created. Approve it before starting.`, "info"); } catch (e) { notify(e instanceof Error ? e.message : "Version creation failed", "error"); }
+    try { const result = await api<{ version: Version }>(`/api/campaigns/${id}/versions`, { method: "POST" }); await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId: result.version.id }) }); setVersions((current) => [result.version, ...current]); setActiveVersionId(result.version.id); setApprovalExpiresAt(null); notify(`Версия ${result.version.version} создана. Одобрите её перед запуском.`, "info"); } catch (e) { notify("Не удалось создать версию рассылки.", "error"); }
   };
 
   const approveVersion = async () => {
-    try { if (!activeVersionId) return; const result = await api<{ campaign: { approvalExpiresAt: string | null } }>(`/api/campaigns/${id}/approve`, { method: "POST" }); setApprovalExpiresAt(result.campaign.approvalExpiresAt); notify("Campaign version approved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Approval failed", "error"); }
+    try { if (!activeVersionId) return; const result = await api<{ campaign: { approvalExpiresAt: string | null } }>(`/api/campaigns/${id}/approve`, { method: "POST" }); setApprovalExpiresAt(result.campaign.approvalExpiresAt); notify("Версия рассылки одобрена.", "success"); } catch { notify("Не удалось одобрить версию.", "error"); }
   };
 
   const activateVersion = async (versionId: string) => {
-    try { await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId }) }); setActiveVersionId(versionId); setApprovalExpiresAt(null); notify("Version selected. Approve it before starting.", "info"); } catch (e) { notify(e instanceof Error ? e.message : "Version activation failed", "error"); }
+    try { await api(`/api/campaigns/${id}/versions/activate`, { method: "POST", body: JSON.stringify({ versionId }) }); setActiveVersionId(versionId); setApprovalExpiresAt(null); notify("Версия выбрана. Одобрите её перед запуском.", "info"); } catch { notify("Не удалось выбрать версию.", "error"); }
   };
 
-  const loadCohorts = async () => { try { const result = await api<{ cohorts: Cohort[] }>("/api/analytics/cohorts"); setCohorts(result.cohorts); } catch (e) { notify(e instanceof Error ? e.message : "Cohorts failed", "error"); } };
-  const saveOptimization = async () => { try { await api(`/api/campaigns/${id}/optimization`, { method: "PATCH", body: JSON.stringify({ frequencyCap: optimization.frequencyCap ? Number(optimization.frequencyCap) : null, frequencyWindowDays: optimization.frequencyWindowDays ? Number(optimization.frequencyWindowDays) : null, sendTimeOptimization: optimization.sendTimeOptimization }) }); notify("Optimization settings saved", "success"); } catch (e) { notify(e instanceof Error ? e.message : "Optimization save failed", "error"); } };
+  const loadCohorts = async () => { try { const result = await api<{ cohorts: Cohort[] }>("/api/analytics/cohorts"); setCohorts(result.cohorts); } catch { notify("Не удалось загрузить статистику по группам.", "error"); } };
+  const saveOptimization = async () => { try { await api(`/api/campaigns/${id}/optimization`, { method: "PATCH", body: JSON.stringify({ frequencyCap: optimization.frequencyCap ? Number(optimization.frequencyCap) : null, frequencyWindowDays: optimization.frequencyWindowDays ? Number(optimization.frequencyWindowDays) : null, sendTimeOptimization: optimization.sendTimeOptimization }) }); notify("Настройки оптимизации сохранены.", "success"); } catch { notify("Не удалось сохранить настройки оптимизации.", "error"); } };
 
   const act = async (action: string) => {
     setBusy(action);
     try {
       await api(`/api/campaigns/${id}/${action}`, { method: "POST" });
-      notify(`Campaign ${action}ed`, "success");
+      const actionMessage: Record<string, string> = { start: "Рассылка запущена.", pause: "Рассылка приостановлена.", stop: "Рассылка остановлена.", send: "Письма поставлены в очередь." };
+      notify(actionMessage[action] ?? "Действие выполнено.", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Action failed", "error");
+      notify("Не удалось выполнить действие. Проверьте настройки рассылки.", "error");
     } finally {
       setBusy("");
     }
@@ -147,9 +179,9 @@ export default function CampaignDetailPage() {
     try {
       const result = await api<{ preflight: Preflight }>(`/api/campaigns/${id}/preflight`, { method: "POST" });
       setPreflight(result.preflight);
-      notify(result.preflight.ready ? "Preflight пройден. Кампания готова к запуску." : "Исправьте блокирующие ошибки preflight.", result.preflight.ready ? "success" : "error");
+      notify(result.preflight.ready ? "Проверка пройдена. Рассылка готова к запуску." : "Исправьте ошибки, блокирующие запуск.", result.preflight.ready ? "success" : "error");
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Preflight failed", "error");
+      notify("Не удалось проверить рассылку.", "error");
     } finally {
       setBusy("");
     }
@@ -160,7 +192,7 @@ export default function CampaignDetailPage() {
     try {
       const result = await api<{ analytics: Analytics }>(`/api/campaigns/${id}/stats`);
       setAnalytics(result.analytics);
-    } catch (e) { notify(e instanceof Error ? e.message : "Analytics failed", "error"); }
+    } catch (e) { notify("Не удалось загрузить аналитику.", "error"); }
     finally { setAnalyticsBusy(false); }
   };
 
@@ -170,17 +202,17 @@ export default function CampaignDetailPage() {
       const result = await api<{ analytics: Analytics; insights: { summary: string; recommendations: string[] } }>(`/api/campaigns/${id}/insights`, { method: "POST" });
       setAnalytics(result.analytics);
       setInsights(result.insights);
-    } catch (e) { notify(e instanceof Error ? e.message : "Рекомендации ИИ failed", "error"); }
+    } catch (e) { notify("Не удалось подготовить рекомендации.", "error"); }
     finally { setAnalyticsBusy(false); }
   };
 
   const patch = async (body: Record<string, unknown>) => {
     try {
       await api(`/api/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(body) });
-      notify("Updated", "success");
+      notify("Изменения сохранены.", "success");
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Update failed", "error");
+      notify("Не удалось сохранить изменения.", "error");
     }
   };
 
@@ -204,19 +236,19 @@ export default function CampaignDetailPage() {
         method: "POST",
         body: JSON.stringify(variantForm),
       });
-      notify("Variant added", "success");
+      notify("Вариант добавлен.", "success");
       setVariantOpen(false);
-      setVariantForm({ name: "Variant B", subject: "", body: "" });
+      setVariantForm({ name: "Вариант B", subject: "", body: "" });
       await load();
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Failed to add variant", "error");
+      notify("Не удалось добавить вариант.", "error");
     }
   };
 
   if (loading) {
     return (
       <div>
-        <div className="page-head"><div><h1 className="page-title">Campaign</h1></div></div>
+        <div className="page-head"><div><h1 className="page-title">Рассылка</h1></div></div>
         <div className="card" style={{ padding: 24 }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="skeleton" style={{ height: 40, marginBottom: 10 }} />
@@ -229,7 +261,7 @@ export default function CampaignDetailPage() {
   if (error) {
     return (
       <div>
-        <div className="page-head"><div><h1 className="page-title">Campaign</h1></div></div>
+        <div className="page-head"><div><h1 className="page-title">Рассылка</h1></div></div>
         <div className="card" style={{ padding: 12, color: "var(--red)" }}>{error}</div>
       </div>
     );
@@ -354,24 +386,24 @@ export default function CampaignDetailPage() {
           )}
         </div>
 
-        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Версии кампании</div>{approvalExpiresAt && <span className="badge green">Одобрено до {new Date(approvalExpiresAt).toLocaleTimeString()}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Version {version.version}</span><span className="muted">{new Date(version.createdAt).toLocaleString()}</span><code>{version.contentHash.slice(0, 10)}</code></button>)}</div></section>}
+        {versions.length > 0 && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="row"><div className="section-label grow">Версии кампании</div>{approvalExpiresAt && <span className="badge green">Одобрено до {formatDateTime(approvalExpiresAt)}</span>}</div><div className="stack" style={{ gap: 6, marginTop: 8 }}>{versions.map((version) => <button type="button" className="row small" key={version.id} style={{ textAlign: "left", border: 0, background: version.id === activeVersionId ? "var(--accent-muted)" : "transparent", padding: 8, borderRadius: 6 }} onClick={() => activateVersion(version.id)}><span className="grow">Версия {version.version}</span><span className="muted">{formatDateTime(version.createdAt)}</span></button>)}</div></section>}
 
-        {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Оптимизация отправки</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Максимум сообщений</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="Без ограничения" /></div><div className="field"><label>Окно (дни)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Оптимизировать время отправки</label><button className="btn btn-primary" onClick={saveOptimization}>Save</button></div><div className="small muted">Контакты сверх лимита пропускаются в этой партии. Контакты из цепочек переносятся на ближайшее разрешённое время.</div></section>}
+        {(campaign.status === "Draft" || campaign.status === "Paused") && <section className="card" style={{ padding: 14, marginBottom: 20 }}><div className="section-label">Оптимизация отправки</div><div className="row" style={{ alignItems: "end", gap: 8 }}><div className="field"><label>Максимум сообщений</label><input className="input" type="number" min={1} value={optimization.frequencyCap} onChange={(e) => setOptimization((current) => ({ ...current, frequencyCap: e.target.value }))} placeholder="Без ограничения" /></div><div className="field"><label>Окно (дни)</label><input className="input" type="number" min={1} value={optimization.frequencyWindowDays} onChange={(e) => setOptimization((current) => ({ ...current, frequencyWindowDays: e.target.value }))} placeholder="7" /></div><label className="row small" style={{ paddingBottom: 8 }}><input type="checkbox" checked={optimization.sendTimeOptimization} onChange={(e) => setOptimization((current) => ({ ...current, sendTimeOptimization: e.target.checked }))} /> Оптимизировать время отправки</label><button className="btn btn-primary" onClick={saveOptimization}>Сохранить</button></div><div className="small muted">Контакты сверх лимита пропускаются в этой партии. Контакты из цепочек переносятся на ближайшее разрешённое время.</div></section>}
 
         {preflight && (
           <section className="card" style={{ padding: 18, marginBottom: 20, borderColor: preflight.ready ? "var(--green)" : "var(--red)" }}>
             <div className="row" style={{ marginBottom: 12 }}>
               <div className="grow">
                 <div className="section-label" style={{ marginBottom: 2 }}>Проверка кампании</div>
-                <div className="small muted">Checked {new Date(preflight.checkedAt).toLocaleString()} · {preflight.errors} errors · {preflight.warnings} warnings</div>
+                <div className="small muted">Проверено {formatDateTime(preflight.checkedAt)} · ошибок: {preflight.errors} · предупреждений: {preflight.warnings}</div>
               </div>
               <span className={`badge ${preflight.ready ? "green" : "red"}`}>{preflight.ready ? "Готово" : "Заблокировано"}</span>
             </div>
             {preflight.issues.length === 0 ? <div className="small">Проблем не найдено.</div> : <div className="stack" style={{ gap: 8 }}>
               {preflight.issues.map((issue, index) => (
                 <div className="row small" key={`${issue.code}-${issue.source ?? "campaign"}-${index}`} style={{ alignItems: "start" }}>
-                  <span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity}</span>
-                  <div><div>{issue.message}</div>{issue.source && <div className="muted">Источник: {issue.source}</div>}</div>
+                  <span className={`badge ${issue.severity === "error" ? "red" : "warm"}`}>{issue.severity === "error" ? "Ошибка" : "Предупреждение"}</span>
+                  <div><div>{localizePreflightIssue(issue)}</div>{issue.source && <div className="muted">Источник: {issue.source}</div>}</div>
                 </div>
               ))}
             </div>}
@@ -379,18 +411,18 @@ export default function CampaignDetailPage() {
         )}
 
         <section className="card" style={{ padding: 18, marginBottom: 20 }}>
-          <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Аналитика кампании</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Загрузка..." : "Обновить"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>Рекомендации ИИ</button></div>
+          <div className="row" style={{ marginBottom: 14 }}><div className="section-label grow" style={{ marginBottom: 0 }}>Аналитика кампании</div><button className="btn btn-sm" onClick={loadAnalytics} disabled={analyticsBusy}>{analyticsBusy ? "Загрузка…" : "Обновить"}</button><button className="btn btn-sm btn-primary" onClick={loadInsights} disabled={analyticsBusy}>Рекомендации ИИ</button></div>
           {!analytics ? <div className="small muted">Аналитика появится после начала отправки.</div> : <>
             <div className="row" style={{ gap: 18, flexWrap: "wrap" }}><Metric label="Открытия" value={`${analytics.rates.openRate}%`} /><Metric label="Переходы" value={`${analytics.rates.clickRate}%`} /><Metric label="Ответы" value={`${analytics.rates.replyRate}%`} /><Metric label="Возвраты" value={`${analytics.rates.bounceRate}%`} /></div>
             <div className="divider" />
             <div className="section-label">Карта кликов</div>
-            {analytics.heatmap.length === 0 ? <div className="small muted">Событий кликов пока нет.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} clicks</span><span className="muted">{item.uniqueEmails} unique</span></div>)}</div>}
-            {analytics.byDay.length > 0 && <><div className="divider" /><div className="section-label">Динамика по дням</div><div className="stack" style={{ gap: 6 }}>{analytics.byDay.map((day) => <div className="row small" key={day.date}><span className="grow">{day.date}</span><span>{day.sent} sent</span><span>{day.opens} opens</span><span>{day.clicks} clicks</span><span>{day.replies} replies</span></div>)}</div></>}
+            {analytics.heatmap.length === 0 ? <div className="small muted">Событий кликов пока нет.</div> : <div className="stack" style={{ gap: 6 }}>{analytics.heatmap.map((item) => <div className="row small" key={item.elementId}><span className="grow" style={{ overflowWrap: "anywhere" }}>{item.url || item.elementId}</span><span className="badge blue">{item.clicks} переходов</span><span className="muted">{item.uniqueEmails} уникальных контактов</span></div>)}</div>}
+            {analytics.byDay.length > 0 && <><div className="divider" /><div className="section-label">Варианты письма</div><div className="stack" style={{ gap: 6 }}>{analytics.byDay.map((day) => <div className="row small" key={day.date}><span className="grow">{day.date}</span><span>{day.sent} отправлено</span><span>{day.opens} открыто</span><span>{day.clicks} переходов</span><span>{day.replies} ответов</span></div>)}</div></>}
             {insights && <div className="card" style={{ padding: 12, marginTop: 14, background: "var(--surface-2)" }}><strong>Итоги ИИ</strong><p className="small">{insights.summary}</p><ul className="small">{insights.recommendations.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}</ul></div>}
           </>}
         </section>
 
-        <section className="card" style={{ padding: 18, marginBottom: 20 }}><div className="row"><div className="section-label grow">Когорты и выручка</div><button className="btn btn-sm" onClick={loadCohorts}>Загрузить когорты</button></div>{cohorts.length === 0 ? <div className="small muted">Отслеживайте события контактов и покупок, чтобы видеть удержание и выручку.</div> : <div className="stack" style={{ gap: 6, marginTop: 8 }}>{cohorts.map((cohort) => <div className="row small" key={cohort.cohort}><span className="grow">{cohort.cohort}</span><span>{cohort.contacts} contacts</span><span>{cohort.retentionRate}% retention</span><span>{cohort.purchases} purchases</span><span>{cohort.revenue.toFixed(2)} revenue</span><span>{cohort.revenuePerContact.toFixed(2)}/contact</span></div>)}</div>}</section>
+        <section className="card" style={{ padding: 18, marginBottom: 20 }}><div className="row"><div className="section-label grow">Когорты и выручка</div><button className="btn btn-sm" onClick={loadCohorts}>Загрузить когорты</button></div>{cohorts.length === 0 ? <div className="small muted">Отслеживайте события контактов и покупок, чтобы видеть удержание и выручку.</div> : <div className="stack" style={{ gap: 6, marginTop: 8 }}>{cohorts.map((cohort) => <div className="row small" key={cohort.cohort}><span className="grow">{cohort.cohort}</span><span>{cohort.contacts} контактов</span><span>{cohort.retentionRate}% удержание</span><span>{cohort.purchases} покупок</span><span>{cohort.revenue.toFixed(2)} выручка</span><span>{cohort.revenuePerContact.toFixed(2)} на контакт</span></div>)}</div>}</section>
 
         {variants.length > 0 && (
           <FadeContent>
@@ -398,7 +430,7 @@ export default function CampaignDetailPage() {
               <div className="row" style={{ marginBottom: 8 }}>
                 <div className="section-label" style={{ marginBottom: 0 }}>A/B варианты</div>
                 <span className="grow" />
-                <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>+ Добавить вариант</button>
+                <button className="btn btn-sm" onClick={() => setVariantOpen(true)}>＋ Добавить вариант</button>
               </div>
               <div className="card" style={{ padding: 0 }}>
                 {variants.map((v) => (
@@ -407,8 +439,8 @@ export default function CampaignDetailPage() {
                       <div style={{ fontWeight: 600 }}>{v.name}</div>
                       <div className="small muted">{v.subject}</div>
                     </div>
-                    <span className="small muted">{v.sent} sent</span>
-                    <span className="small muted" style={{ marginLeft: 12 }}>{v.replies} replies</span>
+                    <span className="small muted">{v.sent} отправлено</span>
+                    <span className="small muted" style={{ marginLeft: 12 }}>{v.replies} ответов</span>
                   </div>
                 ))}
               </div>
@@ -422,15 +454,15 @@ export default function CampaignDetailPage() {
               <div className="section-label" style={{ marginBottom: 12 }}>Добавить A/B вариант</div>
               <div className="field">
                 <label>Название варианта</label>
-                <input className="input" value={variantForm.name} onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })} placeholder="Variant B" />
+                <input className="input" value={variantForm.name} onChange={(e) => setVariantForm({ ...variantForm, name: e.target.value })} placeholder="Вариант B" />
               </div>
               <div className="field">
-                <label>Subject</label>
-                <input className="input" value={variantForm.subject} onChange={(e) => setVariantForm({ ...variantForm, subject: e.target.value })} placeholder="Different subject line" />
+                <label>Тема письма</label>
+                <input className="input" value={variantForm.subject} onChange={(e) => setVariantForm({ ...variantForm, subject: e.target.value })} placeholder="Например, предложение о сотрудничестве" />
               </div>
               <div className="field">
-                <label>Body</label>
-                <textarea className="input" rows={6} value={variantForm.body} onChange={(e) => setVariantForm({ ...variantForm, body: e.target.value })} placeholder="Different email body" />
+                <label>Текст письма</label>
+                <textarea className="input" rows={6} value={variantForm.body} onChange={(e) => setVariantForm({ ...variantForm, body: e.target.value })} placeholder="Напишите текст варианта письма" />
               </div>
               <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
                 <button className="btn btn-ghost" onClick={() => setVariantOpen(false)}>Отмена</button>
@@ -442,7 +474,7 @@ export default function CampaignDetailPage() {
 
         <FadeContent>
           <section>
-            <div className="section-label">Leads</div>
+            <div className="section-label">Контакты рассылки</div>
             <div className="card" style={{ padding: 0, overflowX: "auto" }}>
               {leads.length === 0 ? (
                 <div className="empty-state" style={{ padding: 24 }}>
@@ -456,7 +488,7 @@ export default function CampaignDetailPage() {
                       <th style={{ padding: "10px 16px" }}>Имя</th>
                       <th style={{ padding: "10px 16px" }}>Электронная почта</th>
                       <th style={{ padding: "10px 16px" }}>Статус</th>
-                      <th style={{ padding: "10px 16px" }}>Sent</th>
+                      <th style={{ padding: "10px 16px" }}>Отправлено</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -465,7 +497,7 @@ export default function CampaignDetailPage() {
                         <td style={{ padding: "10px 16px", fontWeight: 550 }}>{cl.lead.name}</td>
                         <td style={{ padding: "10px 16px" }}>{cl.lead.email || "—"}</td>
                         <td style={{ padding: "10px 16px" }}>
-                          <span className={`badge ${LEAD_STATUS_STYLES[cl.status] || "gray"}`}>{cl.status}</span>
+                          <span className={`badge ${LEAD_STATUS_STYLES[cl.status] || "gray"}`}>{uiLabel(campaignLeadStatusLabels, cl.status)}</span>
                         </td>
                         <td style={{ padding: "10px 16px" }} className="small muted">{cl.sentAt ? formatDate(cl.sentAt) : "—"}</td>
                       </tr>

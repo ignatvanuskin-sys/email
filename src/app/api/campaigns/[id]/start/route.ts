@@ -56,12 +56,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       leadIds = leads.map((l) => l.id);
     }
 
-    for (const leadId of leadIds) {
-      await prisma.campaignLead.upsert({
-        where: { campaignId_leadId: { campaignId: id, leadId } },
-        create: { campaignId: id, leadId, status: CAMPAIGN_LEAD_STATUS.PENDING, assignedVariantId: assignVariant(`${id}:${leadId}`, variants) },
-        update: {},
-      });
+    const existingEnrollments = await prisma.campaignLead.findMany({
+      where: { campaignId: id, leadId: { in: leadIds } },
+      select: { leadId: true },
+    });
+    const existingLeadIds = new Set(existingEnrollments.map((row) => row.leadId));
+    const enrollmentRows = leadIds.filter((leadId) => !existingLeadIds.has(leadId)).map((leadId) => ({
+      campaignId: id,
+      leadId,
+      status: CAMPAIGN_LEAD_STATUS.PENDING,
+      assignedVariantId: assignVariant(`${id}:${leadId}`, variants),
+    }));
+    // Keep batches below SQLite/PostgreSQL bind-parameter limits. The
+    // campaign/lead unique constraint makes a repeated start harmless; the
+    // pre-read prevents ordinary repeat starts from issuing duplicate writes.
+    for (let offset = 0; offset < enrollmentRows.length; offset += 500) {
+      try {
+        await prisma.campaignLead.createMany({ data: enrollmentRows.slice(offset, offset + 500) });
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && (error as { code?: string }).code === "P2002")) throw error;
+      }
     }
 
     await prisma.campaign.update({ where: { id }, data: { status: CAMPAIGN_STATUS.RUNNING, startedAt: new Date() } });

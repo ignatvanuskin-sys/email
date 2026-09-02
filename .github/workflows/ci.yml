@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: file:./dev.db
+      APP_URL: http://localhost:3000
+      SESSION_SECRET: ci-session-secret-ci-session-secret-ci
+      WEBHOOK_SECRET: ci-webhook-secret-ci-webhook-secret-ci
+      CRON_SECRET: ci-cron-secret-ci-cron-secret-ci
+      BOUNCE_WEBHOOK_SECRET: ci-bounce-secret-ci-bounce-secret-ci
+      UNSUBSCRIBE_SECRET: ci-unsubscribe-secret-ci-unsubscribe-secret-ci
+      CREDENTIALS_KEY: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate --schema prisma/schema.prisma
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit and integration tests
+        run: npm test -- --run
+      - name: Production build
+        run: npm run build
+      - name: Verify application contract
+        run: VERIFY_MODE=production npm run verify
+      - name: Dependency audit
+        run: npm audit --audit-level=high

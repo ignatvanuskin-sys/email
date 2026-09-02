@@ -1,7 +1,22 @@
 import { prisma } from "./prisma";
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 const memoryBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function requestIdentity(req: Request): string {
+  // Railway's ingress supplies x-real-ip. Do not trust an arbitrary
+  // x-forwarded-for chain from the client.
+  return req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
+export async function requestRateLimit(req: Request, key: string, limit = 60, windowMs = 60_000): Promise<NextResponse | null> {
+  const result = await consumeRateLimit(`${key}:${requestIdentity(req)}`, limit, windowMs);
+  if (result.allowed) return null;
+  const retryAfterSeconds = Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000));
+  const requestId = randomUUID();
+  return NextResponse.json({ error: "Too many requests", code: "RATE_LIMITED", requestId, retryAfterSeconds }, { status: 429, headers: { "retry-after": String(retryAfterSeconds), "cache-control": "no-store", "x-request-id": requestId } });
+}
 
 export async function consumeRateLimit(key: string, limit: number, windowMs: number, now = new Date()): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
   const windowKey = String(Math.floor(now.getTime() / windowMs));

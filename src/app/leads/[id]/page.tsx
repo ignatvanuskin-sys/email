@@ -7,6 +7,7 @@ import { api } from "@/lib/client";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { formatDate } from "@/lib/utils";
 import { StatusPill } from "@/components/StatusPill";
+import { emailStatusLabels, followUpStatusLabels, leadStatusLabels, uiLabel } from "@/lib/uiLabels";
 import { EmailCard } from "@/components/EmailCard";
 import BlurText from "@/components/react-bits/BlurText";
 import ShinyText from "@/components/react-bits/ShinyText";
@@ -120,8 +121,8 @@ export default function LeadProfilePage() {
             <div className="section-label">Детали</div>
             <DetailRow label="Электронная почта" value={lead.email ?? "—"} />
             <DetailRow label="Канал" value={lead.companyOrChannel || "—"} />
-            <DetailRow label="Niche" value={lead.niche || "—"} />
-            <DetailRow label="YouTube" value={lead.youtubeUrl ?? "—"} />
+            <DetailRow label="Сфера" value={lead.niche || "—"} />
+            <DetailRow label="Канал YouTube" value={lead.youtubeUrl ?? "—"} />
             <DetailRow label="Создан" value={formatDate(lead.createdAt)} />
             <div className="divider" />
             <div className="row">
@@ -129,18 +130,18 @@ export default function LeadProfilePage() {
                 {busy === "analyzing" ? <><span className="spinner" /> Анализ…</> : "Анализировать"}
               </button>
               <select className="select" style={{ maxWidth: 170 }} value="" onChange={(e) => e.target.value && setStatus(e.target.value)}>
-                <option value="" disabled>Set status…</option>
-                <option value="Client">Client</option>
-                <option value="Lost">Lost</option>
-                <option value="Not Now">Not Now</option>
-                <option value="Unsubscribed">Unsubscribed</option>
+                <option value="" disabled>Изменить статус…</option>
+                <option value="Client">{uiLabel(leadStatusLabels, "Client")}</option>
+                <option value="Lost">{uiLabel(leadStatusLabels, "Lost")}</option>
+                <option value="Not Now">{uiLabel(leadStatusLabels, "Not Now")}</option>
+                <option value="Unsubscribed">{uiLabel(leadStatusLabels, "Unsubscribed")}</option>
               </select>
             </div>
           </section></FadeContent>
 
           {lead.insight && (
             <FadeContent><section className="card" style={{ padding: 18 }}>
-              <div className="section-label">AI Insight</div>
+              <div className="section-label">Подсказки от ИИ</div>
               <InsightBlock insight={lead.insight} />
             </section></FadeContent>
           )}
@@ -167,7 +168,7 @@ export default function LeadProfilePage() {
             {data.emails.length === 0 ? <div className="empty">Писем пока нет.</div> : data.emails.map((e) => (
               <div key={e.id} className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
                 <span className="grow" style={{ fontWeight: 550 }}>{e.subject}</span>
-                <span className={`badge ${e.status === "Sent" ? "green" : e.status === "Failed" ? "red" : "gray"}`}>{e.status}</span>
+                <span className={`badge ${e.status === "Sent" ? "green" : e.status === "Failed" ? "red" : "gray"}`}>{uiLabel(emailStatusLabels, e.status)}</span>
                 <span className="small muted">{e.sentAt ? formatDate(e.sentAt) : ""}</span>
               </div>
             ))}
@@ -181,7 +182,7 @@ export default function LeadProfilePage() {
               <div key={f.id} className="row" style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)" }}>
                 <span className="grow" style={{ fontWeight: 550 }}>{f.note}</span>
                 <span className="small muted">{formatDate(f.dueDate)}</span>
-                <span className={`badge ${f.status === "Pending" ? "warm" : "gray"}`}>{f.status}</span>
+                <span className={`badge ${f.status === "Pending" ? "warm" : "gray"}`}>{uiLabel(followUpStatusLabels, f.status)}</span>
               </div>
             ))}
           </div>
@@ -204,11 +205,11 @@ function InsightBlock({ insight }: { insight: Insight }) {
   return (
     <div className="stack">
       {[
-        ["Opportunity", insight.opportunity],
-        ["Pitch angle", insight.pitchAngle],
-        ["Suggested offer", insight.suggestedOffer],
-        ["Suggested test", insight.suggestedTest],
-        ["Risk", insight.risk],
+        ["Возможность", insight.opportunity],
+        ["Идея для обращения", insight.pitchAngle],
+        ["Предложение", insight.suggestedOffer],
+        ["Что проверить", insight.suggestedTest],
+        ["Риск", insight.risk],
       ].map(([label, text]) => (
         <div key={label}>
           <div className="small" style={{ fontWeight: 650, marginBottom: 2 }}>{label}</div>

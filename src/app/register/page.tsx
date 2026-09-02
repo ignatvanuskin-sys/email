@@ -14,13 +14,17 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [business, setBusiness] = useState(
-    "Short-form video editing — I repurpose long videos into Reels, Shorts and TikToks for creators.",
+    "Например: помогаю компаниям находить клиентов через персональные письма.",
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) { setError("Введите имя."); return; }
+    if (!email.trim()) { setError("Введите электронную почту."); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setError("Введите корректный адрес электронной почты."); return; }
+    if (password.length < 8) { setError("Пароль должен содержать не менее 8 символов."); return; }
     setLoading(true);
     setError("");
     try {
@@ -31,7 +35,7 @@ export default function RegisterPage() {
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Register failed");
+      setError("Не удалось создать аккаунт. Проверьте введённые данные и попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -47,24 +51,25 @@ export default function RegisterPage() {
           <p className="page-sub" style={{ marginBottom: 20 }}>
             Настройте пространство и начните находить клиентов за несколько минут.
           </p>
-          <form onSubmit={submit}>
+          <form onSubmit={submit} noValidate aria-describedby={error ? "register-error" : undefined}>
             <div className="field">
-              <label>Имя</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jordan Smith" />
+              <label htmlFor="register-name">Имя</label>
+              <input id="register-name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Алексей Иванов" autoComplete="name" />
             </div>
             <div className="field">
-              <label>Электронная почта</label>
-              <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <label htmlFor="register-email">Электронная почта</label>
+              <input id="register-email" className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" aria-invalid={Boolean(error && !email.trim())} />
             </div>
             <div className="field">
-              <label>Пароль (минимум 8 символов)</label>
-              <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <label htmlFor="register-password">Пароль (минимум 8 символов)</label>
+              <input id="register-password" className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-describedby="register-password-hint" />
+              <div id="register-password-hint" className="field-hint">Не используйте пароль от другого сервиса.</div>
             </div>
             <div className="field">
-              <label>Какую услугу вы продаёте?</label>
-              <textarea className="input" value={business} onChange={(e) => setBusiness(e.target.value)} rows={3} />
+              <label htmlFor="register-business">Какую услугу вы продаёте?</label>
+              <textarea id="register-business" className="input" value={business} onChange={(e) => setBusiness(e.target.value)} rows={3} />
             </div>
-            {error && <div className="small" style={{ color: "var(--red)", marginBottom: 12 }}>{error}</div>}
+            {error && <div id="register-error" className="small friendly-error" role="alert">{error}</div>}
             <ClickSpark sparkColor="rgba(255,255,255,0.8)" sparkSize={7} sparkRadius={18} sparkCount={10}>
               <button className="btn btn-primary btn-lg" style={{ width: "100%" }} disabled={loading}>
                 {loading ? "Создание аккаунта…" : "Создать аккаунт"}

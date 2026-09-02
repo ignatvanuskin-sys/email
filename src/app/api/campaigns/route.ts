@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getApiUser, handleError, ok, readJson, unauthorized } from "@/lib/api";
+import { getApiUser, handleError, ok, readJson, unauthorized, badRequest } from "@/lib/api";
 import { validateCampaignReferences } from "@/lib/ownership";
 import { z } from "zod";
 
@@ -15,20 +15,54 @@ const createSchema = z.object({
   sendTimeOptimization: z.boolean().optional().default(false),
 });
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getApiUser();
     if (!user) return unauthorized();
-    const campaigns = await prisma.campaign.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        _count: { select: { leads: true, variants: true } },
+    const url = new URL(req.url);
+    const limit = parseLimit(url.searchParams.get("limit"));
+    const cursorValue = url.searchParams.get("cursor");
+    const cursor = cursorValue ? decodeCursor(cursorValue) : null;
+    if (cursorValue && !cursor) return badRequest("Invalid cursor");
+    const rows = await prisma.campaign.findMany({
+      where: {
+        userId: user.id,
+        ...(cursor ? { OR: [
+          { createdAt: { lt: cursor.createdAt } },
+          { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+        ] } : {}),
       },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
+      include: { _count: { select: { leads: true, variants: true } } },
     });
-    return ok({ campaigns });
+    const hasMore = rows.length > limit;
+    const campaigns = hasMore ? rows.slice(0, limit) : rows;
+    const last = campaigns.at(-1);
+    const nextCursor = hasMore && last ? encodeCursor({ createdAt: last.createdAt.toISOString(), id: last.id }) : null;
+    return ok({ campaigns, nextCursor, hasMore });
   } catch (err) {
     return handleError(err);
+  }
+}
+
+function parseLimit(value: string | null): number {
+  const parsed = Number(value ?? 50);
+  return Number.isInteger(parsed) ? Math.max(1, Math.min(100, parsed)) : 50;
+}
+
+function encodeCursor(cursor: { createdAt: string; id: string }): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeCursor(value: string): { createdAt: Date; id: string } | null {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { createdAt?: unknown; id?: unknown };
+    if (typeof parsed.createdAt !== "string" || typeof parsed.id !== "string" || !parsed.id) return null;
+    const createdAt = new Date(parsed.createdAt);
+    return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id: parsed.id };
+  } catch {
+    return null;
   }
 }
 
